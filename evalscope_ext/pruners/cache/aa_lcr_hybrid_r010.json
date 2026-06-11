@@ -1,0 +1,44 @@
+{
+  "selected_hashes": [
+    "05da2a48265c58fe44f580958f46b12e0ce8338191d1872a7fb32f734e463a2c",
+    "114ef8b4400f4260e4b4186d5ee0170b3b114fc3cd5475e815d13aea13fe7a10",
+    "365e9a3a9c5f7467905b984bae0b85393bf4c49adc0bbf621a3ff579361c85a1",
+    "54f4751ddc0a769dbb0a6e8badce6f6cece92734d69f6999ea89c3b18e3b1393",
+    "55d15a6abe715eab35fb5025d2bf2142fdda42a298f17d0ae694c1b890c843fc",
+    "7df96274aac0bea405709b72108dedaaaad4b8626f0d8933e93e178e200e972c",
+    "96ab47b775d56944992d22b80a6871375e55636bfeb379bc01b058707adc2686",
+    "aae5ef16dc180a6a5e42e45e8b4a2c3dceb7ac7f7fb5dd7899347e6af72c954e",
+    "c46d27ff27f5ca72f4e8e43299b84f79dea19587bf7544f4befbd36ab4122cdc",
+    "dbafe5a65493ca51ccb74faa8545781e138a6d7beafb8e3981bc459e03c255f1"
+  ],
+  "metadata": {
+    "strategy": "hybrid",
+    "prune_ratio": 0.1,
+    "target_count": 10,
+    "selected_count": 10,
+    "bucket_counts": {
+      "split_hard": 4,
+      "split_easy": 4,
+      "anchor_easy": 2,
+      "anchor_hard": 0,
+      "discrim_pool": 43,
+      "anchor_pool": 57,
+      "discrim_slots": 8,
+      "anchor_slots": 2,
+      "selected_discrim": 8,
+      "selected_anchor": 2
+    },
+    "n_items_total": 100,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ],
+    "judge_noise_caveat": "AA-LCR acc is LLM-judged (single run). Tier assignments for borderline items may shift on re-evaluation."
+  }
+}

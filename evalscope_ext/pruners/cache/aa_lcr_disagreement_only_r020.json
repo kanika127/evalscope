@@ -1,0 +1,48 @@
+{
+  "selected_hashes": [
+    "0870471c1b823086eb224ffe9bd933e9155827a637b86478c7c2cd19c679b4b5",
+    "12417654299077973a8207a06de46e35a3362828c355e9fa9c4620f0e6cebe86",
+    "18540a903ee606d775b9f96b5db2534d17c6fe20120d1f7e34ab84330b336c14",
+    "5422c16aaff475feff3f0c64e88b827853ae8fabe1e265a637fc48d271911716",
+    "6566c7770c0f62591613655c95f04e7945b9e0fc9e0f001915d8d9cd9208e4db",
+    "6e11c960cfb19872b75ae6b0cadd76d9b32a75db8673815ca4c7d9fc4e53f1b8",
+    "8a29d4ddbb82e61c68a1b6c6ee635531b8d07b705284b927a4dac75bc693ec8c",
+    "a56c381f0596901be4b8d6bb2c48b67554dcf147e6859d91f957ce8743fd78c7",
+    "a764950b8ad523d513a9931a4fe493506343874e13a715f504c32aee215424f6",
+    "ab7735e50a5d74c36715f7dabc1a675448cb8e87a24312f9bec4e6da86e5f7b2",
+    "b3a6c52c92a7bdb172675a816f1303432139cbd87c58e56e6a5b17b5f8eaf718",
+    "b47c5e49c246685d900a0fb6d4ad551a93fcbc3edb7be073e9815fd8307beda6",
+    "c39a285920ff960f163fbba0f7fd89f50a0373669d3abe301791f3ea49439b1d",
+    "c46d27ff27f5ca72f4e8e43299b84f79dea19587bf7544f4befbd36ab4122cdc",
+    "d7ee60668a16af863e3dcb972e9e4b610f4816dfad6102980ef4e37e2499391d",
+    "df4e5b9ae9eef1405dfc49877321711dee36961d3c95e35e65e2ba3d21faee36",
+    "e0c7b7e336537a0127ba8bc34a2506c08ef5f3c3555cb6cc053b42b3ccfad4cc",
+    "e659ee28fa2016a302d5566c56290c71e7876f5dc690f05366c548f356801dde",
+    "e6ee405bfed49cb77bc7ab3d3e0dbef0194c3cb30c0886766cc9c4c2b654d853",
+    "ec44a059ec44d98f495ffe4b393b79376f4aa98e1add766debaf6d891c8c556d"
+  ],
+  "metadata": {
+    "strategy": "disagreement_only",
+    "prune_ratio": 0.2,
+    "target_count": 20,
+    "selected_count": 20,
+    "bucket_counts": {
+      "split_easy": 13,
+      "split_hard": 7,
+      "anchor_hard": 0,
+      "anchor_easy": 0
+    },
+    "n_items_total": 100,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ],
+    "judge_noise_caveat": "AA-LCR acc is LLM-judged (single run). Tier assignments for borderline items may shift on re-evaluation."
+  }
+}

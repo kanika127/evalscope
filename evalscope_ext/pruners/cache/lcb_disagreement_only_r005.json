@@ -1,0 +1,43 @@
+{
+  "selected_hashes": [
+    "01d49c7cab17098c15f9603bf951d3d4759a059625080307692fef236aee9838",
+    "3d8f261750ca3712de72c0ea2648dc8e1ae16ddda99cd42d7dd92638bec178e8",
+    "3e8014edfed1127a8c66ca85ab9b228fbc9a37264a1e03e8cab2a675ff415a15",
+    "42b3cdd31105fb1a83f155c0a15afee16ca0c958a4560a812c395f9eecb5573e",
+    "615991c5494e0d4f0ee2f2cc549237b18ee74bc4cbfd56edc0189cdb9cf96d35",
+    "6ced1f74120e80e99c0ad54013ad8ae2864e866e90a02c9bd3091a61f70a12a7",
+    "82f4fa0be3486767da82176b52e0ba170397fedad17dd6aa947b174ec86875c3",
+    "8753b221ade8ac1201c92df9b9887b8ae51dab5d0184e400237eb10e90f7e1de",
+    "bbc4a672b812317c529ff786a87ed69ff99de172f732932ece5d9bd3205640cc",
+    "bdc3588e67f1a571cb7f901f8e9d3f0bb2c794e841758e811b8b880c0f262ec3",
+    "c6a8de2f22bee2e70fb9d65500c15b83f23d26e86f61e022f2614f5bfb460f3d",
+    "df48c557bfba4623990211bf15bedd5976fc07e35d97d9d45b288a24423f72bf",
+    "e49a07320bafc498aa80e3ae47cbd23588e4045e23b2d29fd664b316d1cf92df",
+    "e9e3aeea5a0c659eb27ebfb09cbdbb4c6f65f4cb3849b9934034e4fdb25ec541",
+    "f7ab87bc3d24a2add59ab08870d5eb1801c2ac20dd2493e2807fc7d39d1c06b3",
+    "fd070404431d72f8131bb6a30afbd578b24b1b717821a5412e9a11d72060306d"
+  ],
+  "metadata": {
+    "strategy": "disagreement_only",
+    "prune_ratio": 0.05,
+    "target_count": 16,
+    "selected_count": 16,
+    "bucket_counts": {
+      "split_easy": 9,
+      "split_hard": 7,
+      "anchor_hard": 0,
+      "anchor_easy": 0
+    },
+    "n_items_total": 315,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ]
+  }
+}

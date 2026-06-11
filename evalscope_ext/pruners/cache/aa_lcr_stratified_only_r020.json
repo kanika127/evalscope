@@ -1,0 +1,48 @@
+{
+  "selected_hashes": [
+    "0908c6f7478953ede332d45f62cac3bfbf16901017a53423620dfdddf12acba0",
+    "0d04e0e1e9ab027f68c361ad9345a740688953bda67a1c1c2e83a62b2b431920",
+    "26be44e44e75c2f486b028986ffbbc13e7af588de6352311b0faa8aa9e48b7b9",
+    "36f07f76ff1782978c033423db4376901b4cd43843484b8d1cdbbef4c209661e",
+    "55d15a6abe715eab35fb5025d2bf2142fdda42a298f17d0ae694c1b890c843fc",
+    "5b1ae38b08d141441356a131e8ed167eaf768d327d11430f896d00c54e3b025b",
+    "7ce8cf7eeda2c440e03d77b8f27fe5ecbdbfcfcbb88a7347e50b00ee14a4b074",
+    "ab7735e50a5d74c36715f7dabc1a675448cb8e87a24312f9bec4e6da86e5f7b2",
+    "b76987a0ff7131d79d2d61d3833408839b5b3bf5ca815616a3d29fdeb6e3c0b8",
+    "bbce9585092d1a5996e7cf3c0e13aa7f9b2c321a1cd0221333755f7aa196ca27",
+    "c46d27ff27f5ca72f4e8e43299b84f79dea19587bf7544f4befbd36ab4122cdc",
+    "cbda6b80eefb8352fb12b7334837966d3c9cdfef37e707ffb78c7026acce1523",
+    "cf83fb8f0d1e1a10ac8ea122268a18a483161d0f4d40ced1b7904d39974e287f",
+    "d3214aed5bfdebebf0e9891892aafac0bc28a598404f3dd7ae46d1289f9a0525",
+    "df4e5b9ae9eef1405dfc49877321711dee36961d3c95e35e65e2ba3d21faee36",
+    "dfaae60aeb3ab5870e4c532e2f041fe5ece751253116009cbee033101ca5d2fb",
+    "e0c7b7e336537a0127ba8bc34a2506c08ef5f3c3555cb6cc053b42b3ccfad4cc",
+    "ec44a059ec44d98f495ffe4b393b79376f4aa98e1add766debaf6d891c8c556d",
+    "ecf2823e8b02bd85ad248d8ba286102f6bdafd117e0827a1b5bdf13d59eab934",
+    "f6ef69a5d16dbf5d48059312b0921b83cf7d27ebf4644272156d8fe0d58c91ef"
+  ],
+  "metadata": {
+    "strategy": "stratified_only",
+    "prune_ratio": 0.2,
+    "target_count": 20,
+    "selected_count": 20,
+    "bucket_counts": {
+      "anchor_hard": 4,
+      "split_hard": 4,
+      "split_easy": 5,
+      "anchor_easy": 7
+    },
+    "n_items_total": 100,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ],
+    "judge_noise_caveat": "AA-LCR acc is LLM-judged (single run). Tier assignments for borderline items may shift on re-evaluation."
+  }
+}

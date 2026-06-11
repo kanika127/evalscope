@@ -1,0 +1,54 @@
+{
+  "selected_hashes": [
+    "18540a903ee606d775b9f96b5db2534d17c6fe20120d1f7e34ab84330b336c14",
+    "1eb47c782578dc088d3ab766e2941e2fe31aed53ed7e7e560b6fbc0804691a7a",
+    "26be44e44e75c2f486b028986ffbbc13e7af588de6352311b0faa8aa9e48b7b9",
+    "3644dea9a0bc77ed329172fee90ec87aecc7ae6a9cb3af5253f2cd12adf583bc",
+    "512830be356214a9ebb00afef5f66fa228f86b869e8758f88361e11298dc95ac",
+    "5422c16aaff475feff3f0c64e88b827853ae8fabe1e265a637fc48d271911716",
+    "55d15a6abe715eab35fb5025d2bf2142fdda42a298f17d0ae694c1b890c843fc",
+    "5f5e24e916ab739e6d380d3b032dff62c5cbc4a6ca6be3350e8ce5e0d973700d",
+    "7ce8cf7eeda2c440e03d77b8f27fe5ecbdbfcfcbb88a7347e50b00ee14a4b074",
+    "823fa94067448fbc7babaf3c824cfb0d59a36948c99e86dbac1b6a346256c78a",
+    "96ab47b775d56944992d22b80a6871375e55636bfeb379bc01b058707adc2686",
+    "a764950b8ad523d513a9931a4fe493506343874e13a715f504c32aee215424f6",
+    "ab7735e50a5d74c36715f7dabc1a675448cb8e87a24312f9bec4e6da86e5f7b2",
+    "b47c5e49c246685d900a0fb6d4ad551a93fcbc3edb7be073e9815fd8307beda6",
+    "cd751093182a112c174ba0b7043b7833a274248ada9675316d55a47273761161",
+    "d3214aed5bfdebebf0e9891892aafac0bc28a598404f3dd7ae46d1289f9a0525",
+    "df4e5b9ae9eef1405dfc49877321711dee36961d3c95e35e65e2ba3d21faee36",
+    "e6ee405bfed49cb77bc7ab3d3e0dbef0194c3cb30c0886766cc9c4c2b654d853",
+    "ec44a059ec44d98f495ffe4b393b79376f4aa98e1add766debaf6d891c8c556d",
+    "ecf2823e8b02bd85ad248d8ba286102f6bdafd117e0827a1b5bdf13d59eab934"
+  ],
+  "metadata": {
+    "strategy": "hybrid",
+    "prune_ratio": 0.2,
+    "target_count": 20,
+    "selected_count": 20,
+    "bucket_counts": {
+      "split_hard": 6,
+      "split_easy": 11,
+      "anchor_easy": 3,
+      "anchor_hard": 0,
+      "discrim_pool": 43,
+      "anchor_pool": 57,
+      "discrim_slots": 17,
+      "anchor_slots": 3,
+      "selected_discrim": 17,
+      "selected_anchor": 3
+    },
+    "n_items_total": 100,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ],
+    "judge_noise_caveat": "AA-LCR acc is LLM-judged (single run). Tier assignments for borderline items may shift on re-evaluation."
+  }
+}

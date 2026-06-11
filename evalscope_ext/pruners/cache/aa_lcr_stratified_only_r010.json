@@ -1,0 +1,38 @@
+{
+  "selected_hashes": [
+    "0908c6f7478953ede332d45f62cac3bfbf16901017a53423620dfdddf12acba0",
+    "5422c16aaff475feff3f0c64e88b827853ae8fabe1e265a637fc48d271911716",
+    "b76987a0ff7131d79d2d61d3833408839b5b3bf5ca815616a3d29fdeb6e3c0b8",
+    "bbce9585092d1a5996e7cf3c0e13aa7f9b2c321a1cd0221333755f7aa196ca27",
+    "bfa407c17fdcd429ac5e7613bc0a1d549eec476bf2b9bd67f23ca74850ffa107",
+    "cbda6b80eefb8352fb12b7334837966d3c9cdfef37e707ffb78c7026acce1523",
+    "d2bf92a60f4e5604a6b60ba6e610314218c541676a4a830f77f7d50a547b02e0",
+    "d7ee60668a16af863e3dcb972e9e4b610f4816dfad6102980ef4e37e2499391d",
+    "ecf2823e8b02bd85ad248d8ba286102f6bdafd117e0827a1b5bdf13d59eab934",
+    "f6ef69a5d16dbf5d48059312b0921b83cf7d27ebf4644272156d8fe0d58c91ef"
+  ],
+  "metadata": {
+    "strategy": "stratified_only",
+    "prune_ratio": 0.1,
+    "target_count": 10,
+    "selected_count": 10,
+    "bucket_counts": {
+      "anchor_hard": 3,
+      "split_easy": 3,
+      "anchor_easy": 4,
+      "split_hard": 0
+    },
+    "n_items_total": 100,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ],
+    "judge_noise_caveat": "AA-LCR acc is LLM-judged (single run). Tier assignments for borderline items may shift on re-evaluation."
+  }
+}

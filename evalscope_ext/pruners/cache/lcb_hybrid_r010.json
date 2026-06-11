@@ -1,0 +1,65 @@
+{
+  "selected_hashes": [
+    "1a44e911260cb16ebeb25287ef4888a22c8181a0fbea4874c58b5276dc5e8e9e",
+    "1fcfd3928f83e6f1c5b16072dbaa912afb23f26fee5627a89f1e0e2de91d44fd",
+    "3036232e05e84204ffae3ac3c24d70fe040cfb5b83cbc92c0f94a9d476e3d038",
+    "3362d7bba1a89cc3fe1426607ef86b1d8c0229dd12b2fbd0a88d410014493378",
+    "3ab54fa6aea0752f50420710d5a8bd830423decb74acf85984a958914bb419ad",
+    "3e8014edfed1127a8c66ca85ab9b228fbc9a37264a1e03e8cab2a675ff415a15",
+    "42b3cdd31105fb1a83f155c0a15afee16ca0c958a4560a812c395f9eecb5573e",
+    "5ed84936173b203c8b2532109631bd5cff159ad6cf0e37c2f41c9389dafe16e1",
+    "602590fbefa91817190296cfc0685d970b20fab298c3464d60db7a1c63205522",
+    "652a0c16fa53962f1db4e9220dead76e6b1f9f4e39f75d76cc38ff513a074fa5",
+    "6a2dd33148167bef5fd757150465c307cc2190066f49365be1a5273da93a45f1",
+    "786ac18a22546fdd3639377bde72b5d8dba6fa913acaac6fcb187126c7de3f44",
+    "81bb04f0c66211d60118bcad578015f22f05320f31b824b16abfe33e01ea6bdd",
+    "85f51dd6ca5fccd77754bde4f4e275689cd5e1f17e40296ce699499d356b71a4",
+    "876359e1c58c07d55331bd59c7d9494fbfa0d3838a3bd27317641d957aeaf74c",
+    "8ab9c034ad0ef4bda3709361476971d295ba9a83be856922726f9606f4981894",
+    "8f0c80482e0f1bf5619d4f76a2427d2623cbc554481d03f441f338de93e23cc8",
+    "8fb62c32e5478ec91f3048b7b14c80b88e17d5087b6238f3a870fd276032a3c5",
+    "92701d2d54d7a9cb2e8449d96e36b8261ee9caa98c516bbbf67666051445b056",
+    "ab68b7efb6f70196f57b6517565ad762c809a7369cd092347cb3055e48e359d4",
+    "b249e5743362c9ab57ecd078fd5d34ab87d7dd5829a91e8bc342678ea8cc6579",
+    "c60a2625cbbd223179b23c5d11cee75e435f68b47cf0990df2b2898a5c858d51",
+    "cad9a7be20254421c1365c73c6bc941d320cf44b2c36de3379e01aa3eaf4188a",
+    "cbcadb73f6f40567ab3204bc47a3adc3a2a3bb5e8284d5bedd5d72e6664b8918",
+    "d5fbeacfc0ea321eab8a7badcc46c12c761e2b0556f575636d4ba74ea51984dc",
+    "df48c557bfba4623990211bf15bedd5976fc07e35d97d9d45b288a24423f72bf",
+    "e769063c76715635a2620441c51f9d07e61587607c04cc6810d6979e29fefc1b",
+    "f0875c624f423b41ffe97ec5e725d89e3186e8a07736756828107bb1ca9ca20b",
+    "f35f5689ba1c43c081957bbcffcc78b294d42a333c346cf23b29b46535f0f35f",
+    "f7ab87bc3d24a2add59ab08870d5eb1801c2ac20dd2493e2807fc7d39d1c06b3",
+    "fdcd865e41d081d6d25266fb5c14144e96018e1b996a3c20a4bd47b116112dd9",
+    "ff1f70a649c511d8009d9d9a9c800d1023026d28b5e23d20525de53e16aebd05"
+  ],
+  "metadata": {
+    "strategy": "hybrid",
+    "prune_ratio": 0.1,
+    "target_count": 32,
+    "selected_count": 32,
+    "bucket_counts": {
+      "split_hard": 15,
+      "split_easy": 12,
+      "anchor_hard": 2,
+      "anchor_easy": 3,
+      "discrim_pool": 111,
+      "anchor_pool": 204,
+      "discrim_slots": 27,
+      "anchor_slots": 5,
+      "selected_discrim": 27,
+      "selected_anchor": 5
+    },
+    "n_items_total": 315,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ]
+  }
+}

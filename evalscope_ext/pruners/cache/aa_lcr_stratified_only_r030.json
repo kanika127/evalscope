@@ -1,0 +1,58 @@
+{
+  "selected_hashes": [
+    "0685a97b4cad51e8cb6298403a0822991536f9e1e47a788299d773e898624c44",
+    "0870471c1b823086eb224ffe9bd933e9155827a637b86478c7c2cd19c679b4b5",
+    "0d04e0e1e9ab027f68c361ad9345a740688953bda67a1c1c2e83a62b2b431920",
+    "114ef8b4400f4260e4b4186d5ee0170b3b114fc3cd5475e815d13aea13fe7a10",
+    "18540a903ee606d775b9f96b5db2534d17c6fe20120d1f7e34ab84330b336c14",
+    "26be44e44e75c2f486b028986ffbbc13e7af588de6352311b0faa8aa9e48b7b9",
+    "36f07f76ff1782978c033423db4376901b4cd43843484b8d1cdbbef4c209661e",
+    "3e86f46698dcd84a839ad257f6c39f1775e2fc4466c6b45cd7057d1775f133e0",
+    "5b1ae38b08d141441356a131e8ed167eaf768d327d11430f896d00c54e3b025b",
+    "64598ed97152dafde06dfe8c0bd2428873d259bf955a3491125ba64a846db2d9",
+    "93b83ff0d56b8161ad20b49b0dfed9299e795b4bee73a43460d9250bbe1f15c7",
+    "96ab47b775d56944992d22b80a6871375e55636bfeb379bc01b058707adc2686",
+    "9e3f3c0f0427bc57c84ababe9fe314eb2d79e9c4f59451b968d82d317f535e55",
+    "a56c381f0596901be4b8d6bb2c48b67554dcf147e6859d91f957ce8743fd78c7",
+    "ab7735e50a5d74c36715f7dabc1a675448cb8e87a24312f9bec4e6da86e5f7b2",
+    "b3a6c52c92a7bdb172675a816f1303432139cbd87c58e56e6a5b17b5f8eaf718",
+    "b76987a0ff7131d79d2d61d3833408839b5b3bf5ca815616a3d29fdeb6e3c0b8",
+    "bbce9585092d1a5996e7cf3c0e13aa7f9b2c321a1cd0221333755f7aa196ca27",
+    "bebd1f3efb29cf884d1b27b74eb3013e941370c90e7180c4f806fe11fa65b79b",
+    "bfa407c17fdcd429ac5e7613bc0a1d549eec476bf2b9bd67f23ca74850ffa107",
+    "c6cf2e405cd46d5c43ddc8bc8a1c40ee7fb718f7d22aada6ee2cd19c5933a2f2",
+    "cc37e822d274c4feb6938dd5a6f5ed6c5a2268a81b91aae42ac328ea272b4df1",
+    "ce9b1c1bc1e005bb92fb76757d83ffbd43f0993fa3c5226b6f6dc12831ff1da2",
+    "d3214aed5bfdebebf0e9891892aafac0bc28a598404f3dd7ae46d1289f9a0525",
+    "e01ca7ac4df5b270e55d3cefb262ec4de845aed94db7103a356c983472ff4dd7",
+    "e659ee28fa2016a302d5566c56290c71e7876f5dc690f05366c548f356801dde",
+    "ecf2823e8b02bd85ad248d8ba286102f6bdafd117e0827a1b5bdf13d59eab934",
+    "f05ea67b43a41c5b65521cab6bcfa4c912e52be0db3e10b6fe8b5771a459d9b2",
+    "f6ef69a5d16dbf5d48059312b0921b83cf7d27ebf4644272156d8fe0d58c91ef",
+    "fb83eee8adf864fd53d9f13f340596cd4dafe6e7be0441774efa666e9f3cc354"
+  ],
+  "metadata": {
+    "strategy": "stratified_only",
+    "prune_ratio": 0.3,
+    "target_count": 30,
+    "selected_count": 30,
+    "bucket_counts": {
+      "anchor_hard": 7,
+      "split_hard": 5,
+      "split_easy": 7,
+      "anchor_easy": 11
+    },
+    "n_items_total": 100,
+    "model_names": [
+      "gpt-oss-120b",
+      "kimi-k2.5",
+      "minimax-m2.5"
+    ],
+    "rng_seed": 0,
+    "anchor_fraction": 0.15,
+    "features_used": [
+      "token_bin"
+    ],
+    "judge_noise_caveat": "AA-LCR acc is LLM-judged (single run). Tier assignments for borderline items may shift on re-evaluation."
+  }
+}
