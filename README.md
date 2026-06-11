@@ -72,9 +72,11 @@ Background documentation:
 
 ## Setup
 
+evalscope requires **Python ≥ 3.10** (`requires-python = ">=3.10"` in `pyproject.toml`). Use an explicit ≥3.10 interpreter when creating the venv — the bare `python3` on macOS (system or anaconda) is often 3.9.x and will fail at `pip install -e .` with `Package 'evalscope' requires a different Python: <ver> not in '>=3.10'`.
+
 ```bash
-# Fresh venv — evalscope requires pydantic ≥ 2.5.0
-python3 -m venv .venv
+# Fresh venv — evalscope requires Python ≥ 3.10 and pydantic ≥ 2.5.0
+python3.11 -m venv .venv             # or python3.10 / python3.12 / python3.13
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .
