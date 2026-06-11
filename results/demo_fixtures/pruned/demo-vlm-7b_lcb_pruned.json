@@ -1,0 +1,9 @@
+{
+  "name": "demo_pruned",
+  "dataset_name": "live_code_bench_pruned",
+  "dataset_pretty_name": "Live-Code-Bench (Pruned)",
+  "model_name": "demo-vlm-7b",
+  "score": 0.7813,
+  "num": 32,
+  "metrics": []
+}

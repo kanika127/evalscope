@@ -1,0 +1,9 @@
+{
+  "name": "demo_full",
+  "dataset_name": "live_code_bench",
+  "dataset_pretty_name": "Live-Code-Bench",
+  "model_name": "demo-vlm-7b",
+  "score": 0.746,
+  "num": 315,
+  "metrics": []
+}
