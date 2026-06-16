@@ -182,6 +182,10 @@ class BenchmarkMeta:
                 setattr(self, key, value)  # Validate few_shot_num if it's being updated
                 if key == 'few_shot_num' and value < 0:
                     raise ValueError('few_shot_num must be >= 0')
+            elif key in self.extra_params:
+                # Flat extra-param override: key is not a BenchmarkMeta field but
+                # matches a known extra_param (e.g. pruning_strategy, prune_ratio).
+                self._update_extra_params({key: value})
 
     def _update_filters(self, new_filters: dict):
         if self.filters is None:

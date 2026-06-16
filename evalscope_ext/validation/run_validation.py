@@ -298,7 +298,7 @@ def format_summary_md(
         "`{-1.0, -0.333, +0.333, +1.0}`. A uniform-random ranking lands at "
         "τ=+1.0 with probability 1/6 ≈ 17%. We mitigate by running "
         f"{len(seeds)*3} trials per cell and reporting τ-distribution + "
-        "**held-out-model rank preservation rate** (the C2 claim) "
+        "**held-out-model rank preservation rate** (the defensible-for-a-4th-model test) "
         "alongside τ. Read held-out-preservation as the headline; τ_mean as "
         "secondary.\n"
     )
@@ -339,7 +339,7 @@ def format_summary_md(
         )
 
         lines.append("")
-        lines.append("### Held-out-model rank preservation rate (HEADLINE — C2 claim)")
+        lines.append("### Held-out-model rank preservation rate (the defensible-for-a-4th-model test)")
         lines.append("")
         lines.append("Fraction of 30 trials in which the held-out model's "
                      "rank position survived (it was never used during selection).")

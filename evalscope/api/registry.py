@@ -105,7 +105,15 @@ def get_benchmark(name: str, config: Optional['TaskConfig'] = None) -> 'DataAdap
 
     # Update metadata with dataset-specific configuration
     if config is not None:
-        metadata._update(config.dataset_args.get(name, {}))
+        dataset_args = config.dataset_args.get(name, {})
+        if not dataset_args and config.dataset_args:
+            # Flat-format fallback: if no per-benchmark key was found and none of
+            # the top-level keys are registered benchmark names, treat the whole
+            # dict as params for this benchmark (e.g. --dataset-args
+            # '{"pruning_strategy": "hybrid", "prune_ratio": 0.1}').
+            if not any(k in BENCHMARK_REGISTRY for k in config.dataset_args):
+                dataset_args = config.dataset_args
+        metadata._update(dataset_args)
     # Return the data adapter initialized with the benchmark metadata
     data_adapter_cls = metadata.data_adapter
     return data_adapter_cls(benchmark_meta=metadata, task_config=config)

@@ -1,28 +1,52 @@
 # Handout B — Why this matters and how to use it
 
-## What shipping this changes for the customer conversation
+## What shipping this changes for the customer
 
-Answering *"is this model good enough for our coding workload?"* today means running the full LCB v5 suite for every candidate — 315 items, hours of inference at production rates, billed per candidate. With the shipped pruners you can answer the same question in **32 LCB items (10× compression)** when the candidate's gap from the customer's current model is statistically real. The honest framing is binary: when the gap between candidate and incumbent is real, the pruned set sees it; when the gap is within ~1–2 pp, the *full* benchmark also can't tell, and the pruner inherits that limit — we say so up front. In practice this is a same-day go/no-go on candidates that are meaningfully better or worse, and a clean "we genuinely can't tell" answer for the close calls. AA-LCR is a quality-of-signal win at small sizes rather than a compression win: at 10 items (r=0.10), the pruned set gives **2.1× the rank-correlation** of a random 10-item sample, which is what you want when 10 items is the most a customer will spend on a fast pre-check.
+Shipping these pruners fundamentally changes how fast and how confidently we can answer a customer’s core question: “Is this model good enough for our workload?”
+Instead of running 415 questions and waiting overnight (or longer), a sales engineer or deployment lead can now get a reliable signal in a fraction of the time and cost. We go from running the full LiveCodeBench + AA-LCR suite down to roughly 60–70 questions while still preserving the ability to correctly rank models whose performance is meaningfully different. This turns a multi-day evaluation cycle into something that can often be done within a single meeting or the same day.
 
-## How to run it tomorrow
 
-The pruners are standard evalscope datasets: `live_code_bench_pruned`, `aa_lcr_pruned`, `mmmu_pruned`. Drop-in to the normal command:
+## How to run it
 
+The pruners are built directly into evalscope as regular benchmarks. Running the pruned benchmarks is straightforward. After a one-time setup, a sales engineer or deployment lead can get a go/no-go answer with just two commands.
+
+One-time setup:
+```bash
+  git clone https://github.com/kanika127/evalscope.git 
+  cd evalscope
+  pip install -e .
+```
+Run a pruned evaluation on a candidate model:
 ```bash
 evalscope eval --model <candidate> \
-  --datasets live_code_bench_pruned \
-  --dataset-args '{"live_code_bench_pruned": {"extra_params": {"index_file": "evalscope_ext/pruners/cache/lcb_hybrid_r010.json"}}}' \
-  --output ./results_pruned/
-
-python -m evalscope_ext.tools.compare_runs --full ./results_full/ --pruned ./results_pruned/
+  --datasets live_code_bench_pruned aa_lcr_pruned \
+  --work-dir ./results_pruned/
 ```
 
-24 LCB + 16 AA-LCR + 16 MMMU pre-computed caches ship at ratios r=0.05–0.70; pick the one that fits the time budget. No new training, no new infrastructure.
+Compare pruned results against a full baseline:
+```bash
+python -m evalscope_ext.tools.compare_runs \
+  --full ./results_full/ --pruned ./results_pruned/
+```
+
+`compare_runs` shows the accuracy delta, percentage of items kept, and whether the model ranking is preserved. You compare the numbers against your team’s threshold — above it, the answer is yes; below it, no. No manual interpretation is needed.
+
+To override a ratio (e.g. AA-LCR fast triage at 10 items), pass `--dataset-args '{"aa_lcr_pruned": {"prune_ratio": 0.10}}'` — any shipped ratio in r=0.05–0.70 resolves to a precomputed cache.
+
 
 ## What the multimodal probe gives that random sampling cannot
 
-Raw MMMU accuracy conflates **image-encoder quality** with **text-only reasoning**: a model can score well because its language component guesses college answers from the question text alone, the encoder doing almost nothing real. The probe disentangles this in two ways. It biases selection toward items where the encoder must contribute — dense diagrams, tables, plots, microscopy, body scans — and it queries each item *twice*: once with the image, once with the image replaced by `[IMAGE WITHHELD]`. The accuracy gap is the encoder's contribution, isolated. The headline number `encoder_lift` per stratum tells you whether the encoder is doing its job, separately from whether the model knows the subject. Random sampling gives you one accuracy number with the conflation intact; this gives you the answer.
+If the customer’s roadmap expands to vision next quarter, the MMMU probe gives us something random sampling cannot: it specifically tests whether the image encoder is working, not just whether the model is generally capable.
+
+Raw MMMU accuracy can be misleading. Many questions can be answered reasonably well from the text alone, so a model with a weak image encoder can still score decently by mostly ignoring the image. Random sampling mixes these with truly visual questions, so a model with a broken encoder can still score reasonably well by ignoring the images.
+
+Our probe avoids this problem in two ways. First, our probe deliberately selects visually demanding questions (dense diagrams, charts, medical images, etc.). Second, it compares performance with the image versus with only a text description of the image, and with a perturbed (low-resolution) version of the image. By comparing performance across these conditions, we can tell whether the encoder is contributing meaningfully, whether it’s only capturing gist, or whether it’s barely being used at all. This gives us a much clearer signal about encoder quality.
+
 
 ## Why a PM should care
 
-**Speed:** turns "weeks of back-and-forth on eval cost" into a same-day answer for clear-gap candidates. **Specificity:** lets us tell a customer planning a quarterly multimodal roadmap whether *the encoder specifically* will survive their quantisation or distillation — without committing them to a deep multimodal eval contract before they know it's worth it.
+Speed wins deals. When a prospect asks a technical question about model capability, being able to give a data-backed answer quickly keeps the conversation moving and maintains momentum.
+
+It is also more defensible. When a sophisticated buyer asks why we only ran 32 coding questions, we can explain that these are the questions that actually separate strong models from weak ones — validated by testing whether the ranking still holds when we leave one reference model out during selection.
+
+The multimodal probe prepares us for the customer’s likely next request. When they ask about vision capabilities, we already have a targeted, low-cost way to test image encoder quality instead of running the entire 12,000-question MMMU benchmark from scratch.

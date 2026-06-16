@@ -85,7 +85,8 @@ def add_argument(parser: argparse.ArgumentParser):
     # Cache and working directory arguments
     parser.add_argument('--use-cache', type=str, help='Path to a previous output directory (e.g. outputs/20260519_120000) to resume from. Reuses cached predictions and reviews matched by sample_id.')  # noqa: E501
     parser.add_argument('--rerun-review', action='store_true', default=False, help='When --use-cache is set, force re-running the review/scoring step (deletes existing reviews cache) while still reusing prediction cache.')  # noqa: E501
-    parser.add_argument('--work-dir', type=str, help='The root cache dir.')
+    parser.add_argument('--work-dir', '--output', dest='work_dir', type=str,
+                        help='The root cache/output directory (--output is an alias for --work-dir).')
     parser.add_argument('--no-timestamp', action='store_true', default=False, help='Do not add timestamp to work_dir to avoid overwriting previous results.')  # noqa: E501
     parser.add_argument('--enable-progress-tracker', action='store_true', default=False, help='Enable progress tracker.')
 

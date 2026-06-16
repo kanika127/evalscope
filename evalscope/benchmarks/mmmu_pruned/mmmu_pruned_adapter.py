@@ -20,8 +20,10 @@ Stable key: `metadata.id` (the MMMU upstream id). Verified unique across the
 660 shipped reference samples; we do NOT content-hash for MMMU.
 
 This pruned adapter pairs with `evalscope_ext.probes.encoder_probe` for the
-triple-query (full / text-only / perturbed) encoder-degradation protocol —
-the adapter selects items; the probe runs them through the OpenAI interface.
+triple-query encoder-degradation protocol (full / text-only / perturbed,
+all three by default) — the adapter selects items; the probe runs them
+through the OpenAI interface and produces the JOINT signal that names
+ABSENT / COARSE / HEALTHY per stratum.
 """
 from __future__ import annotations
 
@@ -98,11 +100,17 @@ MMMU exposes a proper stable identifier directly.
 
 This adapter selects the items. The actual encoder-degradation signal is
 produced by `evalscope_ext.probes.encoder_probe.run_triple_query()` which
-queries each selected item three times through the standard OpenAI interface
-(full / text-only / perturbed) and reports per-stratum `encoder_lift` —
-the gap between text+image accuracy and text-only accuracy. A degraded
-encoder shrinks `encoder_lift` on high-stress strata while leaving the
-low-stress controls unchanged.
+queries each selected item through three variants (Q1 full, Q2 text-only,
+Q3 perturbed — all three default) and reports a per-stratum JOINT signal:
+
+- `lift_text = acc(Q1) − acc(Q2)` — encoder vs text alone
+- `lift_pert = acc(Q1) − acc(Q3)` — fine spatial detail vs coarse gist
+
+The joint rule classifies each stratum into ABSENT / COARSE / HEALTHY
+under calibration thresholds `τ_lift`, `τ_pert`. The COARSE state — high
+lift_text, low lift_pert — is the quantized / distilled encoder signature
+the dual signal is built to surface (fp8 vs fp16 of the SAME VLM is the
+canonical experiment).
 """,
         dataset_id="AI-ModelScope/MMMU",
         subset_list=SUBSET_LIST,
@@ -111,15 +119,36 @@ low-stress controls unchanged.
         prompt_template=OPEN_PROMPT,
         extra_params={
             "index_file": {
-                "type": "str",
+                "type": "str | null",
                 "description": (
                     "Path to a JSON file containing the pre-computed list of "
                     "selected MMMU ids. Produced by "
                     "evalscope_ext/pruners/precompute_mmmu.py. "
                     "Accepts {'selected_ids': [...]}, {'selected_hashes': [...]}, "
-                    "or a plain list."
+                    "or a plain list. "
+                    "When null, resolved from pruning_strategy + prune_ratio "
+                    "against the shipped cache directory."
                 ),
                 "value": None,
+            },
+            "pruning_strategy": {
+                "type": "str",
+                "description": (
+                    "Selection strategy used for the default cache lookup. "
+                    "One of: hybrid, random, stratified_only, disagreement_only. "
+                    "Ignored if `index_file` is set explicitly."
+                ),
+                "value": "hybrid",
+            },
+            "prune_ratio": {
+                "type": "float",
+                "description": (
+                    "Fraction of items kept (0 < r <= 1) used for the default "
+                    "cache lookup. MMMU default 0.30 → 198 of 660 items "
+                    "(the README's documented MMMU example ratio). "
+                    "Ignored if `index_file` is set explicitly."
+                ),
+                "value": 0.30,
             },
         },
     )
@@ -146,14 +175,21 @@ class MMMUPrunedAdapter(MMMUAdapter):
 
         index_file: Optional[str] = self.extra_params.get("index_file")
         if not index_file:
-            raise ValueError(
-                "mmmu_pruned requires 'index_file' in extra_params. "
-                "Generate it with: python -m evalscope_ext.pruners.precompute_mmmu"
+            from evalscope_ext.pruners.cache_paths import default_index_file
+            strategy = self.extra_params.get("pruning_strategy") or "hybrid"
+            ratio = self.extra_params.get("prune_ratio") or 0.30
+            index_file = default_index_file("mmmu", strategy, float(ratio))
+            logger.info(
+                f"[mmmu_pruned] no index_file given; resolved default "
+                f"from strategy={strategy!r}, prune_ratio={ratio}: "
+                f"{index_file}"
             )
         if not os.path.exists(index_file):
             raise FileNotFoundError(
                 f"index_file not found: {index_file!r}. "
-                "Run evalscope_ext/pruners/precompute_mmmu.py to generate it."
+                "Either pass a valid `index_file` in --dataset-args, or run "
+                "`python -m evalscope_ext.pruners.precompute_mmmu` to "
+                "generate the shipped caches."
             )
 
         self._selected_ids: Set[str] = _load_selected_ids(index_file)

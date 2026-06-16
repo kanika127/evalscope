@@ -1,37 +1,56 @@
 """Encoder-quality probe — triple-query wrapper over OpenAI Chat Completions.
 
-For each probe item, run up to three queries and capture the answer-token
-logprob in each:
+For each probe item, run three queries and capture the answer-token logprob
+in each. All three are default — the third (perturbed) is a co-equal signal
+to the second (text-only), not optional:
 
     Q1 — full         text + image(s)
     Q2 — text-only    same text, image attachments replaced by [IMAGE WITHHELD]
-    Q3 — perturbed    (optional) text + image downsampled to 56×56 then re-upsampled
+    Q3 — perturbed    text + image downsampled to 56×56 then re-upsampled
 
-Aggregate per-stratum:
+These produce two complementary stratum-level lifts (the "encoder_lift" of
+Part B is the JOINT of both, not either alone):
 
-    encoder_lift = acc(Q1, stratum) − acc(Q2, stratum)
+    lift_text = acc(Q1, stratum) − acc(Q2, stratum)
+    lift_pert = acc(Q1, stratum) − acc(Q3, stratum)
 
-A degraded encoder shrinks `encoder_lift` on high-stress strata while
-preserving it on low-stress strata (the negative-control bin written by
-precompute_mmmu.py at tier 0). The differential is the probe signal.
+Q2 and Q3 answer different questions:
+    Q2 asks: does the encoder contribute ANYTHING that text alone cannot?
+    Q3 asks: does the encoder read FINE SPATIAL DETAIL, or only coarse gist?
+
+A single-lift story collapses three distinguishable regimes. The joint
+classification (computed by `joint_encoder_signal`) names them:
+
+    ABSENT  — lift_text < τ_lift                       encoder contributes ~nothing
+    COARSE  — lift_text ≥ τ_lift AND lift_pert < τ_pert  encoder reads gist, loses detail
+    HEALTHY — both lifts ≥ their thresholds            encoder reads detail too
+
+The COARSE state is exactly the signature of a quantized / distilled image
+encoder (fp8 vs fp16 of the same VLM is the cleanest experiment): coarse
+features survive, fine ones don't.
+
+τ_lift and τ_pert are CALIBRATION PARAMETERS, not fitted constants. They
+are exposed as CLI flags and meant to be tuned on the target VLM. The
+defaults (τ_lift=0.10, τ_pert=0.05) are conservative starting points that
+will need adjustment per model family.
 
 This module is END-TO-END runnable against any OpenAI-compatible URL+key
 (OpenAI, Azure, vLLM, Together, Anyscale, Cerebras's own inference endpoint,
-LM Studio…). We do not execute it in this session; we ship it as importable,
-unit-tested code that a reviewer can point at an endpoint via:
+LM Studio…). It is unit-tested with a fake client (no live numbers in this
+repo). A reviewer points it at an endpoint via:
 
     OPENAI_API_KEY=... OPENAI_BASE_URL=... \\
         python -m evalscope_ext.probes.encoder_probe \\
             --index-file evalscope_ext/pruners/cache/mmmu_hybrid_r030.json \\
             --model <vlm_model_name> \\
             --hf-source MMMU/MMMU --hf-split validation \\
+            --tau-lift 0.10 --tau-pert 0.05 \\
             --output-dir ./probe_results/
 
-Three things are tested at unit-test time:
-    1. Prompt construction (image attachment present in Q1, withheld in Q2).
-    2. Answer-token logprob + top-1/top-2 margin extraction from a recorded
-       chat-completion fixture.
-    3. Stratum-level aggregation (encoder_lift, n_full, n_text_only).
+Tests cover (1) prompt construction across all three variants,
+(2) answer-token logprob extraction, (3) stratum-level numeric aggregation,
+and (4) the joint-rule state classification — including one trial per
+ABSENT / COARSE / HEALTHY state plus a threshold-boundary case.
 """
 from __future__ import annotations
 
@@ -344,17 +363,27 @@ def _run_one(
     )
 
 
+DEFAULT_VARIANTS: Tuple[str, ...] = ("full", "text_only", "perturbed")
+DEFAULT_TAU_LIFT: float = 0.10
+DEFAULT_TAU_PERT: float = 0.05
+
+STATE_ABSENT = "absent"
+STATE_COARSE = "coarse"
+STATE_HEALTHY = "healthy"
+
+
 def run_triple_query(
     client: ClientFn,
     model: str,
     items: Sequence[ProbeItem],
-    variants: Sequence[str] = ("full", "text_only"),
+    variants: Sequence[str] = DEFAULT_VARIANTS,
     on_progress: Optional[Callable[[int, int], None]] = None,
 ) -> List[ProbeOutcome]:
     """Run each item through the given variants and collect ProbeOutcome objects.
 
-    Default variants: ("full", "text_only"). Pass ("full", "text_only", "perturbed")
-    to include Q3.
+    Default variants are all three (full, text_only, perturbed) — the joint
+    signal needs Q3 alongside Q2. A caller may pass a 2-variant tuple for
+    quick smoke runs, but the joint classifier requires all three.
     """
     outcomes: List[ProbeOutcome] = []
     for i, item in enumerate(items):
@@ -376,19 +405,24 @@ def encoder_lift_by_stratum(
     outcomes: Sequence[ProbeOutcome],
     stratum_keys: Sequence[str] = ("img_type_bucket", "stress_tier"),
 ) -> Dict[Tuple[Any, ...], Dict[str, float]]:
-    """Aggregate triple-query outcomes per stratum.
+    """Per-stratum numeric aggregation of triple-query outcomes.
+
+    Numeric inputs to the joint-rule classifier in `joint_encoder_signal`.
+    On its own this function does NOT take a decision — it just computes
+    the two lifts (and supporting accuracies / margins) per stratum.
 
     Returns:
         {
           (img_type_bucket_value, stress_tier_value): {
             'n_items': int,
             'acc_full': float,
-            'acc_text_only': float,
-            'encoder_lift': float,         # acc_full − acc_text_only
+            'acc_text_only': float | None,
+            'acc_perturbed': float | None,
+            'lift_text': float | None,             # acc_full − acc_text_only
+            'lift_pert': float | None,             # acc_full − acc_perturbed
             'mean_margin_full': float | None,
             'mean_margin_text_only': float | None,
-            'acc_perturbed': float | None,
-            'acc_lift_vs_perturbed': float | None,  # acc_full − acc_perturbed
+            'mean_margin_perturbed': float | None,
           },
           ...
         }
@@ -409,37 +443,170 @@ def encoder_lift_by_stratum(
             return None
         return sum(1 for r in results if r.correct) / len(results)
 
+    def _margins(outs: List[ProbeOutcome], variant: str) -> Optional[float]:
+        return _mean([
+            o.results_by_variant.get(variant).answer_top1_top2_margin
+            for o in outs
+            if variant in o.results_by_variant
+        ])
+
     out: Dict[Tuple[Any, ...], Dict[str, float]] = {}
     for key, outs in by_key.items():
         acc_full = _frac_correct(outs, "full")
         acc_text = _frac_correct(outs, "text_only")
         acc_pert = _frac_correct(outs, "perturbed")
-        margins_full = _mean([
-            o.results_by_variant.get("full").answer_top1_top2_margin
-            for o in outs
-            if "full" in o.results_by_variant
-        ])
-        margins_text = _mean([
-            o.results_by_variant.get("text_only").answer_top1_top2_margin
-            for o in outs
-            if "text_only" in o.results_by_variant
-        ])
         stratum_summary: Dict[str, Any] = {
             "n_items": len(outs),
             "acc_full": acc_full,
             "acc_text_only": acc_text,
-            "encoder_lift": (
+            "acc_perturbed": acc_pert,
+            "lift_text": (
                 None if acc_full is None or acc_text is None else acc_full - acc_text
             ),
-            "mean_margin_full": margins_full,
-            "mean_margin_text_only": margins_text,
-            "acc_perturbed": acc_pert,
-            "acc_lift_vs_perturbed": (
+            "lift_pert": (
                 None if acc_full is None or acc_pert is None else acc_full - acc_pert
             ),
+            "mean_margin_full": _margins(outs, "full"),
+            "mean_margin_text_only": _margins(outs, "text_only"),
+            "mean_margin_perturbed": _margins(outs, "perturbed"),
         }
         out[key] = stratum_summary
     return out
+
+
+# ---------------------------------------------------------------------------
+# Joint encoder signal (the Part B headline classifier)
+# ---------------------------------------------------------------------------
+
+
+def classify_state(
+    lift_text: Optional[float],
+    lift_pert: Optional[float],
+    tau_lift: float = DEFAULT_TAU_LIFT,
+    tau_pert: float = DEFAULT_TAU_PERT,
+) -> Optional[str]:
+    """Map a (lift_text, lift_pert) pair to one of the three encoder states.
+
+    Returns None when either lift is missing (Q2 or Q3 wasn't run for that
+    stratum — the joint rule needs both).
+
+    The rule, with `>=` semantics on the thresholds (an exactly-on-threshold
+    lift is counted as meeting it, so a model right at the boundary is
+    classified into the better state — review thresholds rather than the
+    rule):
+
+        ABSENT  iff lift_text <  tau_lift                       (regardless of lift_pert)
+        COARSE  iff lift_text >= tau_lift AND lift_pert <  tau_pert
+        HEALTHY iff lift_text >= tau_lift AND lift_pert >= tau_pert
+    """
+    if lift_text is None or lift_pert is None:
+        return None
+    if lift_text < tau_lift:
+        return STATE_ABSENT
+    if lift_pert < tau_pert:
+        return STATE_COARSE
+    return STATE_HEALTHY
+
+
+def joint_encoder_signal(
+    outcomes: Sequence[ProbeOutcome],
+    *,
+    stratum_keys: Sequence[str] = ("img_type_bucket", "stress_tier"),
+    tau_lift: float = DEFAULT_TAU_LIFT,
+    tau_pert: float = DEFAULT_TAU_PERT,
+) -> Dict[str, Any]:
+    """Compute the JOINT 2-signal classification per stratum.
+
+    This is the Part B headline result. `encoder_lift_by_stratum` produces
+    the raw numerics this function consumes; the JSON it returns is what
+    downstream reports and handouts cite.
+
+    Returned shape:
+        {
+          'tau_lift': float, 'tau_pert': float,
+          'strata': {
+            "(img_type_bucket, stress_tier)": {
+                'n_items': int,
+                'lift_text': float | None,
+                'lift_pert': float | None,
+                'state': 'absent' | 'coarse' | 'healthy' | None,
+                'meaningful': bool,        # state == 'healthy'
+            },
+            ...
+          },
+          'state_counts': {'absent': int, 'coarse': int, 'healthy': int, 'unknown': int},
+          'n_strata': int,
+          'n_meaningful': int,
+        }
+
+    `meaningful` and the state counts are what a CLI report consumes; this
+    is the consumer end of Q3 that was missing before.
+    """
+    per_stratum = encoder_lift_by_stratum(outcomes, stratum_keys)
+    strata_out: Dict[str, Any] = {}
+    state_counts: Dict[str, int] = {
+        STATE_ABSENT: 0, STATE_COARSE: 0, STATE_HEALTHY: 0, "unknown": 0
+    }
+    for key, summary in per_stratum.items():
+        lift_text = summary.get("lift_text")
+        lift_pert = summary.get("lift_pert")
+        state = classify_state(lift_text, lift_pert, tau_lift, tau_pert)
+        state_counts[state if state is not None else "unknown"] += 1
+        strata_out[str(key)] = {
+            "n_items": summary["n_items"],
+            "lift_text": lift_text,
+            "lift_pert": lift_pert,
+            "state": state,
+            "meaningful": state == STATE_HEALTHY,
+        }
+    return {
+        "tau_lift": tau_lift,
+        "tau_pert": tau_pert,
+        "strata": strata_out,
+        "state_counts": state_counts,
+        "n_strata": len(strata_out),
+        "n_meaningful": state_counts[STATE_HEALTHY],
+    }
+
+
+def render_joint_report(joint: Dict[str, Any]) -> str:
+    """Markdown report consumed by the CLI. Foregrounds the state counts and
+    lists per-stratum (lift_text, lift_pert, state) so a reviewer reading the
+    report can decide whether the encoder is healthy on this benchmark."""
+    tau_lift = joint["tau_lift"]
+    tau_pert = joint["tau_pert"]
+    counts = joint["state_counts"]
+    n_strata = joint["n_strata"]
+    n_meaningful = joint["n_meaningful"]
+    pct = (n_meaningful / n_strata * 100.0) if n_strata else 0.0
+    lines: List[str] = []
+    lines.append("# Joint encoder signal")
+    lines.append("")
+    lines.append(f"Thresholds: τ_lift = {tau_lift:.3f}, τ_pert = {tau_pert:.3f}")
+    lines.append("")
+    lines.append("## Summary")
+    lines.append("")
+    lines.append(f"- Strata classified: **{n_strata}**")
+    lines.append(f"- HEALTHY  (encoder reads fine detail):       **{counts[STATE_HEALTHY]}**")
+    lines.append(f"- COARSE   (encoder reads gist, loses detail): **{counts[STATE_COARSE]}**")
+    lines.append(f"- ABSENT   (encoder contributes ~nothing):     **{counts[STATE_ABSENT]}**")
+    if counts["unknown"]:
+        lines.append(f"- UNKNOWN  (Q2 or Q3 missing for stratum):     {counts['unknown']}")
+    lines.append("")
+    lines.append(f"**{n_meaningful}/{n_strata} strata ({pct:.0f}%) classified HEALTHY.**")
+    lines.append("")
+    lines.append("## Per-stratum detail")
+    lines.append("")
+    lines.append("| Stratum | n | lift_text | lift_pert | state |")
+    lines.append("|---|---:|---:|---:|---|")
+    for key, s in sorted(joint["strata"].items()):
+        lt = s["lift_text"]
+        lp = s["lift_pert"]
+        lt_str = "—" if lt is None else f"{lt:+.3f}"
+        lp_str = "—" if lp is None else f"{lp:+.3f}"
+        state = s["state"] or "—"
+        lines.append(f"| `{key}` | {s['n_items']} | {lt_str} | {lp_str} | {state} |")
+    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------
@@ -457,8 +624,31 @@ def main() -> None:
                         help="how to materialize the ProbeItems (current: HF stream)")
     parser.add_argument("--hf-repo", default="MMMU/MMMU")
     parser.add_argument("--hf-split", default="validation")
-    parser.add_argument("--variants", nargs="+", default=["full", "text_only"],
-                        help="subset of {full, text_only, perturbed}")
+    parser.add_argument(
+        "--variants", nargs="+", default=list(DEFAULT_VARIANTS),
+        help=(
+            "Variants to run. Default is all three (full, text_only, perturbed) "
+            "— the joint signal needs all three. A 2-variant run is allowed for "
+            "smoke tests but will yield UNKNOWN states from joint_encoder_signal."
+        ),
+    )
+    parser.add_argument(
+        "--tau-lift", type=float, default=DEFAULT_TAU_LIFT,
+        help=(
+            "Threshold on lift_text = acc(full) − acc(text_only) for the "
+            "encoder to be considered NON-absent on a stratum. CALIBRATION "
+            "PARAMETER — tune on the target VLM. Default 0.10."
+        ),
+    )
+    parser.add_argument(
+        "--tau-pert", type=float, default=DEFAULT_TAU_PERT,
+        help=(
+            "Threshold on lift_pert = acc(full) − acc(perturbed) for the "
+            "encoder to be considered HEALTHY (reading fine detail) on a "
+            "stratum. CALIBRATION PARAMETER — tune on the target VLM. "
+            "Default 0.05."
+        ),
+    )
     parser.add_argument("--output-dir", default="./probe_results")
     args = parser.parse_args()
 
@@ -479,11 +669,29 @@ def main() -> None:
     raw_path = os.path.join(args.output_dir, "outcomes.json")
     with open(raw_path, "w") as f:
         json.dump([_outcome_to_dict(o) for o in outcomes], f, indent=2)
+
     summary = encoder_lift_by_stratum(outcomes)
     summary_path = os.path.join(args.output_dir, "encoder_lift_by_stratum.json")
     with open(summary_path, "w") as f:
         json.dump({str(k): v for k, v in summary.items()}, f, indent=2)
-    print(f"[encoder_probe] wrote {raw_path} and {summary_path}")
+
+    joint = joint_encoder_signal(
+        outcomes, tau_lift=args.tau_lift, tau_pert=args.tau_pert
+    )
+    joint_json_path = os.path.join(args.output_dir, "joint_encoder_signal.json")
+    with open(joint_json_path, "w") as f:
+        json.dump(joint, f, indent=2)
+    report = render_joint_report(joint)
+    report_path = os.path.join(args.output_dir, "joint_encoder_signal.md")
+    with open(report_path, "w") as f:
+        f.write(report)
+
+    print(f"[encoder_probe] wrote {raw_path}")
+    print(f"[encoder_probe] wrote {summary_path}")
+    print(f"[encoder_probe] wrote {joint_json_path}")
+    print(f"[encoder_probe] wrote {report_path}")
+    print()
+    print(report)
 
 
 def _outcome_to_dict(o: ProbeOutcome) -> Dict[str, Any]:

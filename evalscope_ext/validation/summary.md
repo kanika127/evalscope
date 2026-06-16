@@ -4,7 +4,7 @@ Empirical test of the pruning method on shipped reference scores. 10 seeds × 3 
 
 ## Coarseness disclaimer (read first)
 
-With only 3 reference models per benchmark, the model ranking is over 3 items. Kendall τ_b on 3 distinct values can take only 4 values: `{-1.0, -0.333, +0.333, +1.0}`. A uniform-random ranking lands at τ=+1.0 with probability 1/6 ≈ 17%. We mitigate by running 30 trials per cell and reporting τ-distribution + **held-out-model rank preservation rate** (the C2 claim) alongside τ. Read held-out-preservation as the headline; τ_mean as secondary.
+With only 3 reference models per benchmark, the model ranking is over 3 items. Kendall τ_b on 3 distinct values can take only 4 values: `{-1.0, -0.333, +0.333, +1.0}`. A uniform-random ranking lands at τ=+1.0 with probability 1/6 ≈ 17%. We mitigate by running 30 trials per cell and reporting τ-distribution + **held-out-model rank preservation rate** (the defensible-for-a-4th-model test) alongside τ. Read held-out-preservation as the headline; τ_mean as secondary.
 
 AA-LCR carries an additional ±2–3% LLM-judge-noise band per item. Treat AA-LCR cell differences < ~0.07 in any rate as within-noise.
 
@@ -31,9 +31,11 @@ AA-LCR carries an additional ±2–3% LLM-judge-noise band per item. Treat AA-LC
 **Interpretation guard.** A pruned-set ranking that fails to put a within-noise pair in the same order as the full benchmark hasn't really 'failed' — the full benchmark itself doesn't distinguish those two models. The held-out preservation rate below blends distinguishable and noise-pair cases; the **per-holdout breakdown** two tables down separates them.
 
 
-### Held-out-model rank preservation rate (HEADLINE — C2 claim)
+### Held-out-model rank preservation rate (the defensible-for-a-4th-model test)
 
 Fraction of 30 trials in which the held-out model's rank position survived (it was never used during selection).
+
+**Strategy key** — **hybrid** (proposed): prioritizes high-disagreement (discriminating) items plus ~15% stratified anchors from agreement items for generalization. Baselines: **disagreement_only** (split-item pool, no anchors), **stratified_only** (stratified sample of all items, no disagreement preference), **random** (uniform random).
 
 | ratio | hybrid | random | disagreement_only | stratified_only |
 |---|---:|---:|---:|---:|
@@ -150,9 +152,11 @@ Smallest ratio at which the held-out-preservation rate reaches each threshold. `
 **Interpretation guard.** A pruned-set ranking that fails to put a within-noise pair in the same order as the full benchmark hasn't really 'failed' — the full benchmark itself doesn't distinguish those two models. The held-out preservation rate below blends distinguishable and noise-pair cases; the **per-holdout breakdown** two tables down separates them.
 
 
-### Held-out-model rank preservation rate (HEADLINE — C2 claim)
+### Held-out-model rank preservation rate (the defensible-for-a-4th-model test)
 
 Fraction of 30 trials in which the held-out model's rank position survived (it was never used during selection).
+
+**Strategy key** — **hybrid** (proposed): prioritizes high-disagreement (discriminating) items plus ~15% stratified anchors from agreement items for generalization. Baselines: **disagreement_only** (split-item pool, no anchors), **stratified_only** (stratified sample of all items, no disagreement preference), **random** (uniform random).
 
 | ratio | hybrid | random | disagreement_only | stratified_only |
 |---|---:|---:|---:|---:|
@@ -247,4 +251,4 @@ Smallest ratio at which the held-out-preservation rate reaches each threshold. `
 - **Held-out preservation rate** is the empirical answer to *'is this defensible for a 4th model the pruner never saw?'*. Higher is better; 1.00 is full preservation across all 30 trials.
 - **All-3 preservation rate** includes the 2 training models, so it's partly circular and shown for completeness.
 - **Kendall τ_b** is the standard rank-correlation metric. On 3 items it's coarse — read distribution shape, not point values.
-- **Hybrid vs random** on the held-out column is the direct C3 check. Random hovers near its expected baseline; hybrid should sit clearly above. If it doesn't, the report says so.
+- **Hybrid vs random** on the held-out column: Random hovers near its expected baseline; hybrid should sit clearly above. If it doesn't, the report says so.

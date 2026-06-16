@@ -1,11 +1,13 @@
 """Unit tests for encoder_probe.
 
 Covers:
-    - Prompt construction: image attached in full, withheld in text-only.
+    - Prompt construction: image attached in full + perturbed, withheld in text-only.
     - Answer extraction + logprob lookup on a recorded fixture.
-    - Stratum-level aggregation (encoder_lift, n_items).
-    - End-to-end smoke: a fake client that returns deterministic responses
-      drives the triple-query path through to encoder_lift_by_stratum.
+    - Stratum-level numeric aggregation (lift_text, lift_pert, accs).
+    - End-to-end smoke: a fake client drives the triple-query path through
+      to encoder_lift_by_stratum.
+    - Joint encoder signal: one trial per state (ABSENT / COARSE / HEALTHY)
+      plus an at-threshold boundary case for the classification rule.
 """
 
 from __future__ import annotations
@@ -15,15 +17,25 @@ from typing import Any, Dict, List
 import pytest
 
 from evalscope_ext.probes.encoder_probe import (
+    DEFAULT_TAU_LIFT,
+    DEFAULT_TAU_PERT,
+    DEFAULT_VARIANTS,
     IMAGE_WITHHELD_TOKEN,
     ProbeItem,
-    QueryResult,
     ProbeOutcome,
+    QueryResult,
+    STATE_ABSENT,
+    STATE_COARSE,
+    STATE_HEALTHY,
     build_messages_full,
+    build_messages_perturbed,
     build_messages_text_only,
+    classify_state,
     encoder_lift_by_stratum,
     extract_answer,
     find_answer_token_logprob,
+    joint_encoder_signal,
+    render_joint_report,
     run_triple_query,
 )
 
@@ -159,29 +171,66 @@ def test_find_answer_token_logprob_returns_none_when_no_answer_marker():
 
 
 class FakeClient:
-    """A canned chat-completion client.
+    """A canned chat-completion client encoding distinct encoder behaviours.
 
-    The encoder probe is encoded as: model 'good_encoder' always answers the
-    correct letter on full+image; on text-only it guesses 'A'. Model
-    'degraded_encoder' answers 'A' on both. This lets the test assert that
-    encoder_lift discriminates.
+    Behaviour names describe what the MODEL DOES per variant, not the
+    classifier verdict — the classifier verdict is the test's assertion.
+
+      'gist_only'      — correct ('B') on full and on perturbed; wrong ('A')
+                         on text-only. The model needs the image but is
+                         UNAFFECTED by destructive perturbation, i.e. it's
+                         reading coarse gist not fine detail.
+                         → joint classifier: COARSE.
+      'detail_reader'  — correct on full; wrong on perturbed (the 56×56
+                         crush kills the signal); wrong on text-only.
+                         The model is genuinely reading fine spatial
+                         content → joint classifier: HEALTHY.
+      'broken'         — wrong on all three variants. Encoder contributes
+                         nothing. → ABSENT.
+      'text_solvable'  — correct on all three. The item didn't need the
+                         image. lift_text ≈ 0 → ABSENT (correctly).
     """
 
-    def __init__(self, model_behavior: str):
-        self.model_behavior = model_behavior
+    _DECISIONS = {
+        "gist_only":     {"full": "B", "text_only": "A", "perturbed": "B"},
+        "detail_reader": {"full": "B", "text_only": "A", "perturbed": "A"},
+        "broken":        {"full": "A", "text_only": "A", "perturbed": "A"},
+        "text_solvable": {"full": "B", "text_only": "B", "perturbed": "B"},
+    }
 
-    def __call__(self, model: str, messages, **kwargs) -> Dict[str, Any]:
+    def __init__(self, behaviour: str):
+        if behaviour not in self._DECISIONS:
+            raise ValueError(f"unknown behaviour {behaviour!r}")
+        self.behaviour = behaviour
+
+    @staticmethod
+    def _detect_variant(messages) -> str:
+        # full and perturbed both have image_url parts; text_only does not.
         has_image = any(
             isinstance(m.get("content"), list)
             and any(p.get("type") == "image_url" for p in m["content"])
             for m in messages
         )
-        if self.model_behavior == "good_encoder" and has_image:
-            return self._mk_response("B")
-        if self.model_behavior == "good_encoder" and not has_image:
-            return self._mk_response("A")
-        # degraded: always A
-        return self._mk_response("A")
+        if not has_image:
+            return "text_only"
+        # We use a tiny marker in the perturbed image URL to disambiguate
+        # full from perturbed in the test — see `_marked_data_uri` below.
+        for m in messages:
+            c = m.get("content")
+            if not isinstance(c, list):
+                continue
+            for p in c:
+                if p.get("type") != "image_url":
+                    continue
+                url = p["image_url"]["url"]
+                if "PERTURBED" in url:
+                    return "perturbed"
+        return "full"
+
+    def __call__(self, model: str, messages, **kwargs) -> Dict[str, Any]:
+        variant = self._detect_variant(messages)
+        letter = self._DECISIONS[self.behaviour][variant]
+        return self._mk_response(letter)
 
     @staticmethod
     def _mk_response(letter: str) -> Dict[str, Any]:
@@ -200,67 +249,231 @@ class FakeClient:
         }
 
 
-def test_run_triple_query_with_fake_client_good_encoder():
+def _mark_perturbed(item: ProbeItem) -> ProbeItem:
+    """For the FakeClient state tests, replace `_perturb_data_uri` with a
+    marker that lets the client distinguish full from perturbed without
+    needing Pillow. (PIL isn't a hard dependency.)"""
+    item.images_b64.clear()
+    return item
+
+
+@pytest.fixture(autouse=True)
+def _patch_perturb(monkeypatch):
+    """Substitute _perturb_data_uri so build_messages_perturbed leaves a
+    marker the FakeClient can detect (we don't want to require Pillow)."""
+    from evalscope_ext.probes import encoder_probe as ep
+    monkeypatch.setattr(
+        ep, "_perturb_data_uri",
+        lambda uri, target_size=56: uri + "#PERTURBED",
+    )
+
+
+def test_full_messages_include_image_default_run():
+    """Sanity: run_triple_query default variants now include perturbed."""
+    assert DEFAULT_VARIANTS == ("full", "text_only", "perturbed")
+
+
+def test_build_messages_perturbed_has_image_with_marker():
+    item = _mc_item()
+    msgs = build_messages_perturbed(item)
+    iu = next(p for p in msgs[0]["content"] if p["type"] == "image_url")
+    assert "PERTURBED" in iu["image_url"]["url"]
+
+
+def test_run_triple_query_runs_all_three_variants_by_default():
+    items = [
+        _mc_item(id_=f"i{n}", stratum={"img_type_bucket": "high", "stress_tier": 2})
+        for n in range(2)
+    ]
+    outcomes = run_triple_query(FakeClient("detail_reader"), "m", items)
+    assert len(outcomes) == 2
+    for o in outcomes:
+        assert set(o.results_by_variant.keys()) == {"full", "text_only", "perturbed"}
+
+
+def test_encoder_lift_aggregates_lift_text_and_lift_pert():
+    """The numeric aggregator now exposes lift_text and lift_pert (the
+    pre-joint `encoder_lift` field was split — the joint signal is the
+    headline). With the `gist_only` fake, acc_full = acc_perturbed = 1.0,
+    acc_text_only = 0.0, so lift_text=1.0 and lift_pert=0.0."""
     items = [
         _mc_item(id_=f"i{n}", stratum={"img_type_bucket": "high", "stress_tier": 2})
         for n in range(4)
     ]
-    client = FakeClient("good_encoder")
-    outcomes = run_triple_query(client, "good_encoder", items, variants=("full", "text_only"))
-    assert len(outcomes) == 4
-    for o in outcomes:
-        # full → B → correct; text-only → A → wrong
-        assert o.results_by_variant["full"].correct
-        assert not o.results_by_variant["text_only"].correct
-
-
-def test_encoder_lift_aggregates_correctly():
-    # 3 high-stress items + 2 low-stress controls
-    items_high = [
-        _mc_item(id_=f"h{n}", stratum={"img_type_bucket": "high", "stress_tier": 2})
-        for n in range(3)
-    ]
-    items_low = [
-        _mc_item(id_=f"l{n}", stratum={"img_type_bucket": "low", "stress_tier": 0})
-        for n in range(2)
-    ]
-    outcomes_good = run_triple_query(
-        FakeClient("good_encoder"), "good_encoder", items_high + items_low
-    )
-    summary_good = encoder_lift_by_stratum(outcomes_good)
-    # In our fake, BOTH high and low strata show full=1.0 and text-only=0.0
-    # → encoder_lift = 1.0 in both. That's expected: FakeClient doesn't
-    # differentiate stratum, only image presence.
-    high_key = ("high", 2); low_key = ("low", 0)
-    assert summary_good[high_key]["n_items"] == 3
-    assert summary_good[low_key]["n_items"] == 2
-    assert summary_good[high_key]["encoder_lift"] == pytest.approx(1.0)
-    assert summary_good[low_key]["encoder_lift"] == pytest.approx(1.0)
-
-    # Degraded encoder: same answer regardless of image → encoder_lift = 0
-    outcomes_bad = run_triple_query(
-        FakeClient("degraded_encoder"), "bad_model", items_high + items_low
-    )
-    summary_bad = encoder_lift_by_stratum(outcomes_bad)
-    # All wrong (always "A", correct is "B") → acc_full = 0, acc_text = 0, lift = 0
-    assert summary_bad[high_key]["acc_full"] == pytest.approx(0.0)
-    assert summary_bad[high_key]["acc_text_only"] == pytest.approx(0.0)
-    assert summary_bad[high_key]["encoder_lift"] == pytest.approx(0.0)
-
-
-def test_perturbed_variant_is_optional():
-    """Running with only ('full', 'text_only') should NOT compute perturbed."""
-    items = [_mc_item()]
-    outcomes = run_triple_query(
-        FakeClient("good_encoder"), "good", items, variants=("full", "text_only")
-    )
-    assert "perturbed" not in outcomes[0].results_by_variant
+    outcomes = run_triple_query(FakeClient("gist_only"), "m", items)
+    summary = encoder_lift_by_stratum(outcomes)
+    key = ("high", 2)
+    s = summary[key]
+    assert s["n_items"] == 4
+    assert s["acc_full"] == pytest.approx(1.0)
+    assert s["acc_text_only"] == pytest.approx(0.0)
+    assert s["acc_perturbed"] == pytest.approx(1.0)
+    assert s["lift_text"] == pytest.approx(1.0)
+    assert s["lift_pert"] == pytest.approx(0.0)
 
 
 def test_stratum_with_zero_items_not_in_summary():
-    """Strata with no outcomes don't appear in the summary."""
     items = [_mc_item(stratum={"img_type_bucket": "high", "stress_tier": 2})]
-    outcomes = run_triple_query(FakeClient("good_encoder"), "g", items)
+    outcomes = run_triple_query(FakeClient("gist_only"), "m", items)
     summary = encoder_lift_by_stratum(outcomes)
     assert ("high", 2) in summary
     assert ("low", 0) not in summary
+
+
+# ---------------------------------------------------------------------------
+# classify_state — direct rule tests, no I/O
+# ---------------------------------------------------------------------------
+
+
+def test_classify_state_absent_when_lift_text_below_tau_lift():
+    assert classify_state(0.05, 0.30, tau_lift=0.10, tau_pert=0.05) == STATE_ABSENT
+    # Even if lift_pert is huge, low lift_text dominates
+    assert classify_state(0.00, 0.99, tau_lift=0.10, tau_pert=0.05) == STATE_ABSENT
+
+
+def test_classify_state_coarse_when_lift_text_passes_lift_pert_fails():
+    assert classify_state(0.40, 0.02, tau_lift=0.10, tau_pert=0.05) == STATE_COARSE
+
+
+def test_classify_state_healthy_when_both_pass():
+    assert classify_state(0.40, 0.20, tau_lift=0.10, tau_pert=0.05) == STATE_HEALTHY
+
+
+def test_classify_state_boundary_inclusive_on_thresholds():
+    """Exact-on-threshold lift counts as meeting it (>= semantics).
+    Lift_text=τ_lift, lift_pert=τ_pert → HEALTHY (not COARSE, not ABSENT).
+    Lift_text slightly below → ABSENT. Lift_pert slightly below → COARSE."""
+    assert classify_state(0.10, 0.05, tau_lift=0.10, tau_pert=0.05) == STATE_HEALTHY
+    assert classify_state(0.099999, 0.05, tau_lift=0.10, tau_pert=0.05) == STATE_ABSENT
+    assert classify_state(0.10, 0.049999, tau_lift=0.10, tau_pert=0.05) == STATE_COARSE
+
+
+def test_classify_state_returns_none_when_a_lift_is_missing():
+    # Without Q2 or Q3 we can't classify
+    assert classify_state(None, 0.20) is None
+    assert classify_state(0.30, None) is None
+
+
+# ---------------------------------------------------------------------------
+# joint_encoder_signal — the end-to-end Part B headline classifier
+# ---------------------------------------------------------------------------
+
+
+def _items(behaviour_strata, n_per: int = 4) -> List[ProbeItem]:
+    """Build N items per (img_type_bucket, stress_tier) stratum."""
+    out = []
+    for stratum in behaviour_strata:
+        for n in range(n_per):
+            out.append(
+                _mc_item(
+                    id_=f"{stratum['img_type_bucket']}_{stratum['stress_tier']}_{n}",
+                    stratum=stratum,
+                )
+            )
+    return out
+
+
+def test_joint_signal_classifies_gist_only_as_coarse():
+    """FakeClient('gist_only') is UNAFFECTED by destructive 56×56
+    perturbation (it answers correctly on full and on perturbed) but wrong
+    on text-only. So lift_text=1.0 passes τ_lift, but lift_pert=0.0 falls
+    below τ_pert. The joint rule names this COARSE — exactly the
+    fp8/quantized signature the dual signal is designed to catch."""
+    items = _items([{"img_type_bucket": "high", "stress_tier": 2}])
+    outcomes = run_triple_query(FakeClient("gist_only"), "m", items)
+    joint = joint_encoder_signal(outcomes)
+    s = joint["strata"]["('high', 2)"]
+    assert s["lift_text"] == pytest.approx(1.0)
+    assert s["lift_pert"] == pytest.approx(0.0)
+    assert s["state"] == STATE_COARSE
+
+
+def test_joint_signal_classifies_detail_reader_as_healthy():
+    """FakeClient('detail_reader') is correct on full, WRONG on perturbed
+    (the 56×56 crush destroyed the signal it was reading), and wrong on
+    text-only. Both lifts = 1.0 → HEALTHY."""
+    items = _items([{"img_type_bucket": "high", "stress_tier": 2}])
+    outcomes = run_triple_query(FakeClient("detail_reader"), "m", items)
+    joint = joint_encoder_signal(outcomes)
+    s = joint["strata"]["('high', 2)"]
+    assert s["lift_text"] == pytest.approx(1.0)
+    assert s["lift_pert"] == pytest.approx(1.0)
+    assert s["state"] == STATE_HEALTHY
+
+
+def test_joint_signal_classifies_broken_as_absent():
+    """All wrong everywhere → both lifts 0 → ABSENT."""
+    items = _items([{"img_type_bucket": "high", "stress_tier": 2}])
+    outcomes = run_triple_query(FakeClient("broken"), "m", items)
+    joint = joint_encoder_signal(outcomes)
+    s = joint["strata"]["('high', 2)"]
+    assert s["lift_text"] == pytest.approx(0.0)
+    assert s["lift_pert"] == pytest.approx(0.0)
+    assert s["state"] == STATE_ABSENT
+
+
+def test_joint_signal_absent_state_on_text_solvable_items():
+    """If text-only resolves the items just as well as full+image, the
+    encoder is contributing nothing on this stratum even if the model is
+    getting them all right. The joint rule must say ABSENT."""
+    items = _items([{"img_type_bucket": "low", "stress_tier": 0}])
+    outcomes = run_triple_query(FakeClient("text_solvable"), "m", items)
+    joint = joint_encoder_signal(outcomes)
+    s = joint["strata"]["('low', 0)"]
+    assert s["lift_text"] == pytest.approx(0.0)
+    assert s["lift_pert"] == pytest.approx(0.0)
+    assert s["state"] == STATE_ABSENT
+
+
+def test_joint_signal_state_counts_match_strata():
+    items = (
+        _items([{"img_type_bucket": "high", "stress_tier": 2}], n_per=3) +
+        _items([{"img_type_bucket": "low", "stress_tier": 0}], n_per=3)
+    )
+    # Run two separate behaviours via a hybrid client? Simpler: just
+    # verify the count matches the sum.
+    outcomes = run_triple_query(FakeClient("broken"), "m", items)
+    joint = joint_encoder_signal(outcomes)
+    assert joint["n_strata"] == 2
+    assert sum(joint["state_counts"].values()) == 2
+    assert joint["state_counts"][STATE_ABSENT] == 2
+
+
+def test_render_joint_report_mentions_thresholds_and_states():
+    items = _items([{"img_type_bucket": "high", "stress_tier": 2}])
+    outcomes = run_triple_query(FakeClient("gist_only"), "m", items)
+    joint = joint_encoder_signal(outcomes, tau_lift=0.10, tau_pert=0.05)
+    text = render_joint_report(joint)
+    assert "τ_lift" in text and "τ_pert" in text
+    assert "HEALTHY" in text and "COARSE" in text and "ABSENT" in text
+    assert "lift_text" in text and "lift_pert" in text
+
+
+def test_joint_signal_threshold_tunability():
+    """The thresholds are calibration parameters. Bumping them must shift
+    a stratum's state — proving that downstream decisions can be tuned
+    without touching the data or the rule. Uses detail_reader so both
+    lifts = 1.0 (so we can move the verdict by moving the τ above 1.0)."""
+    items = _items([{"img_type_bucket": "high", "stress_tier": 2}])
+    outcomes = run_triple_query(FakeClient("detail_reader"), "m", items)
+    # Default thresholds: HEALTHY (both lifts = 1.0)
+    j1 = joint_encoder_signal(outcomes, tau_lift=0.10, tau_pert=0.05)
+    assert j1["strata"]["('high', 2)"]["state"] == STATE_HEALTHY
+    # Bump τ_lift above the observed lift_text=1.0 → ABSENT
+    j2 = joint_encoder_signal(outcomes, tau_lift=1.01, tau_pert=0.05)
+    assert j2["strata"]["('high', 2)"]["state"] == STATE_ABSENT
+    # Restore τ_lift but bump τ_pert above lift_pert=1.0 → COARSE
+    j3 = joint_encoder_signal(outcomes, tau_lift=0.10, tau_pert=1.01)
+    assert j3["strata"]["('high', 2)"]["state"] == STATE_COARSE
+
+
+def test_joint_signal_returns_unknown_when_q3_missing():
+    """If the caller runs without 'perturbed', the joint rule must yield
+    UNKNOWN (None state), not silently pretend Q3 was clean."""
+    items = _items([{"img_type_bucket": "high", "stress_tier": 2}])
+    outcomes = run_triple_query(
+        FakeClient("detail_reader"), "m", items, variants=("full", "text_only")
+    )
+    joint = joint_encoder_signal(outcomes)
+    assert joint["strata"]["('high', 2)"]["state"] is None
+    assert joint["state_counts"]["unknown"] == 1

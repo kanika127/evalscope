@@ -4,6 +4,8 @@
 NOT contain any live inference results.** It demonstrates exactly two
 plumbing claims using shipped reference data and a synthetic compare fixture:
 
+**Strategy key** — **hybrid** (proposed): prioritizes high-disagreement (discriminating) items plus ~15% stratified anchors from agreement items for generalization. Baselines: **disagreement_only** (split-item pool, no anchors), **stratified_only** (stratified sample of all items, no disagreement preference), **random** (uniform random).
+
 1. The `live_code_bench_pruned` adapter, when loaded with the r=0.10 hybrid
    cache, filters the shipped 315-item LCB set down to **the exact 32 items
    that cache encodes**.
@@ -154,7 +156,7 @@ that once such an eval lands its Report JSONs into the two directories,
 | The 32 selected items preserve the rank of a held-out distinguishable model in 100% of 30 trials | `evalscope_ext/validation/summary.md` (LCB hybrid, held-out=gpt-oss-120b row at r=0.10) |
 | Hybrid τ_b at AA-LCR r=0.10 is 2.1× random's with half the variance | `evalscope_ext/validation/summary.md` (AA-LCR Kendall τ_b table) |
 | kimi-vs-minimax is statistically tied (p=0.805 LCB, p=0.767 AA-LCR), so neither pruner nor full benchmark can order that pair | `evalscope_ext/validation/summary.md` (pairwise z-test tables) |
-| MMMU encoder-stress score formula + the triple-query `encoder_lift` metric | `evalscope_ext/probes/encoder_probe.py` + tests; design rationale in `DECISIONS.md` |
+| MMMU encoder-stress score formula + the triple-query JOINT signal (`lift_text`, `lift_pert`, three-state classification ABSENT/COARSE/HEALTHY) | `evalscope_ext/probes/encoder_probe.py` + 25 tests; design rationale in `DECISIONS.md` (entry dated 2026-06-13) |
 
 This file proves only the plumbing: the adapter selects exactly what its
 cache encodes, and `compare_runs` consumes the standard report format

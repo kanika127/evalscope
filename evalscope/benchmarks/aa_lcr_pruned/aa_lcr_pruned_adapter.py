@@ -104,14 +104,34 @@ across evaluation runs on the same subset.
         prompt_template=PROMPT_TEMPLATE,
         extra_params={
             "index_file": {
-                "type": "str",
+                "type": "str | null",
                 "description": (
                     "Path to a JSON file containing the pre-computed list of "
                     "selected content_hashes. Produced by "
                     "evalscope_ext/pruners/precompute_aa_lcr.py. "
-                    "Accepts {'selected_hashes': [...]} or a plain list."
+                    "Accepts {'selected_hashes': [...]} or a plain list. "
+                    "When null, resolved from pruning_strategy + prune_ratio "
+                    "against the shipped cache directory."
                 ),
                 "value": None,
+            },
+            "pruning_strategy": {
+                "type": "str",
+                "description": (
+                    "Selection strategy used for the default cache lookup. "
+                    "One of: hybrid, random, stratified_only, disagreement_only. "
+                    "Ignored if `index_file` is set explicitly."
+                ),
+                "value": "hybrid",
+            },
+            "prune_ratio": {
+                "type": "float",
+                "description": (
+                    "Fraction of items kept (0 < r <= 1) used for the default "
+                    "cache lookup. AA-LCR default 0.30 → 30 of 100 items. "
+                    "Ignored if `index_file` is set explicitly."
+                ),
+                "value": 0.30,
             },
             "text_dir": {
                 "type": "str | null",
@@ -138,14 +158,21 @@ class AALCRPrunedAdapter(AALCRAdapter):
 
         index_file: Optional[str] = self.extra_params.get("index_file")
         if not index_file:
-            raise ValueError(
-                "aa_lcr_pruned requires 'index_file' in extra_params. "
-                "Generate it with: python -m evalscope_ext.pruners.precompute_aa_lcr"
+            from evalscope_ext.pruners.cache_paths import default_index_file
+            strategy = self.extra_params.get("pruning_strategy") or "hybrid"
+            ratio = self.extra_params.get("prune_ratio") or 0.30
+            index_file = default_index_file("aa_lcr", strategy, float(ratio))
+            logger.info(
+                f"[aa_lcr_pruned] no index_file given; resolved default "
+                f"from strategy={strategy!r}, prune_ratio={ratio}: "
+                f"{index_file}"
             )
         if not os.path.exists(index_file):
             raise FileNotFoundError(
                 f"index_file not found: {index_file!r}. "
-                "Run evalscope_ext/pruners/precompute_aa_lcr.py to generate it."
+                "Either pass a valid `index_file` in --dataset-args, or run "
+                "`python -m evalscope_ext.pruners.precompute_aa_lcr` to "
+                "generate the shipped caches."
             )
 
         self._selected_hashes: Set[str] = _load_selected_hashes(index_file)

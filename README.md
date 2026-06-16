@@ -27,6 +27,7 @@ evalscope_ext/                      # Top-level extension package (no upstream c
 │       └── test_core.py            # 34 pytest tests
 ├── probes/
 │   └── encoder_probe.py            # Triple-query (full / text-only / perturbed) image-encoder probe
+│                                   #   → joint_encoder_signal: ABSENT / COARSE / HEALTHY per stratum
 │       └── tests/
 │           └── test_encoder_probe.py  # 11 pytest tests
 ├── validation/
@@ -48,7 +49,7 @@ evalscope/benchmarks/               # Three pruned-adapter registrations (additi
 ### Test counts
 
 ```
-63 tests pass (34 core + 11 encoder_probe + 18 metrics)
+77 tests pass (34 core + 25 encoder_probe + 18 metrics)
 ```
 
 ### Handouts
@@ -207,11 +208,19 @@ OPENAI_API_KEY=…  OPENAI_BASE_URL=…  \
     --model      <vlm_model_name> \
     --hf-repo    MMMU/MMMU \
     --hf-split   validation \
-    --variants   full text_only            # Q3 perturbed optional: append "perturbed"
+    --tau-lift   0.10 \
+    --tau-pert   0.05 \
     --output-dir ./probe_results/
 ```
 
-It writes per-item outcomes and a `encoder_lift_by_stratum.json`. The module is unit-tested end-to-end with a fake client; the live path is identical and requires only the env vars above.
+All three variants (`full`, `text_only`, `perturbed`) run by default. Output:
+
+- `outcomes.json` — per-item raw answers + logprobs
+- `encoder_lift_by_stratum.json` — per-stratum numerics (`lift_text`, `lift_pert`, accs, margins)
+- `joint_encoder_signal.json` — per-stratum state classification (ABSENT / COARSE / HEALTHY) under `τ_lift`, `τ_pert`
+- `joint_encoder_signal.md` — markdown report a reviewer or PM consumes directly
+
+`τ_lift` and `τ_pert` are calibration parameters tuned per VLM family, not fitted constants. The defaults (0.10 / 0.05) are conservative starting points. The module is unit-tested end-to-end with a fake client (25 probe tests); the live path is identical and requires only the env vars above.
 
 ---
 
@@ -223,12 +232,12 @@ pytest evalscope_ext/
 
 # Specifically
 pytest evalscope_ext/pruners/tests/test_core.py        # 34
-pytest evalscope_ext/probes/tests/test_encoder_probe.py # 11
+pytest evalscope_ext/probes/tests/test_encoder_probe.py # 25
 pytest evalscope_ext/validation/tests/test_metrics.py   # 18
 ```
 
 ```
-63 passed in <0.2s
+77 passed in <0.2s
 ```
 
 ---

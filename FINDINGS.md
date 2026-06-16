@@ -4,6 +4,8 @@ Running log of verified facts and data observations for the Task 2 build.
 Every entry is something we can point at evidence for. Append as we go; do
 not retroactively edit established facts (correct them in a new dated entry).
 
+**Strategy key** — **hybrid** (proposed): prioritizes high-disagreement (discriminating) items plus ~15% stratified anchors from agreement items for generalization. Baselines: **disagreement_only** (split-item pool, no anchors), **stratified_only** (stratified sample of all items, no disagreement preference), **random** (uniform random).
+
 ---
 
 ## 2026-06-10 — LCB shipped data: structure
@@ -356,10 +358,47 @@ Diagrams dominate at ~30% combined), so the discrim pool is large and the
 
 **Empirical-validation work deferred to next phase:**
 - Live triple-query runs against an OpenAI-compatible VLM endpoint to
-  produce real `encoder_lift` numbers (no endpoint available in this
-  session).
+  produce real `lift_text` and `lift_pert` numbers (no endpoint available
+  in this session).
+- Calibration of `τ_lift` and `τ_pert` on the target VLM family — the
+  joint rule is implemented and unit-tested, but the thresholds shipped
+  with the code (0.10 / 0.05) are conservative starting points, not
+  measured constants.
 - Sensitivity check on the stress-score weights (±20% flex).
-- Cross-validation on a known-degraded encoder pair (e.g. fp8 vs fp16).
+- The canonical encoder-degradation experiment: fp8 vs fp16 of the SAME
+  VLM, which the joint signal is purpose-built to surface as a HEALTHY →
+  COARSE migration.
+
+---
+
+## 2026-06-13 — Q3 perturbed promoted to a co-equal signal (joint encoder rule)
+
+Earlier `encoder_probe.py` aggregated `acc_lift_vs_perturbed` but no
+downstream code consumed it — captured-but-unused. Promoted to a co-equal
+second signal alongside Q2 (text_only). Probe runtime + tests updated:
+
+- Default variants are now `("full", "text_only", "perturbed")` — all three
+  run by default.
+- New `joint_encoder_signal(outcomes, τ_lift, τ_pert)` and
+  `classify_state(lift_text, lift_pert, …)` map a stratum's
+  `(lift_text, lift_pert)` to one of {ABSENT, COARSE, HEALTHY}.
+- `render_joint_report` produces a markdown summary the CLI writes to
+  `joint_encoder_signal.md` and prints to stdout.
+- CLI flags `--tau-lift` / `--tau-pert` expose the calibration parameters.
+- Renamed numeric fields: `encoder_lift` → `lift_text`,
+  `acc_lift_vs_perturbed` → `lift_pert`.
+
+Tests: 11 → **25 probe tests**, all pass. Coverage adds:
+
+- one trial per ABSENT / COARSE / HEALTHY (via FakeClient behaviours
+  `broken` / `gist_only` / `detail_reader`)
+- one trial for the text_solvable case that should also classify ABSENT
+- direct `classify_state` rule tests including the >= threshold boundary
+- threshold tunability (the same outcomes flip state when τ moves)
+- UNKNOWN-state return when Q3 is missing (no silent default to clean)
+
+**Full extension test suite: 77 / 77 pass** (was 63 before this change —
+14 new probe tests).
 
 ---
 

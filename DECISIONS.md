@@ -4,6 +4,8 @@ Running log of key design choices for the Task 2 benchmark-pruning system.
 Each entry: **decision** → **rationale** → **alternatives considered** (when
 relevant). Append new entries as we go; do not retroactively edit.
 
+**Strategy key** — **hybrid** (proposed): prioritizes high-disagreement (discriminating) items plus ~15% stratified anchors from agreement items for generalization. Baselines: **disagreement_only** (split-item pool, no anchors), **stratified_only** (stratified sample of all items, no disagreement preference), **random** (uniform random).
+
 ---
 
 ## 2026-06-10 — Stable per-item key: SHA-256 of normalized question text
@@ -402,17 +404,33 @@ expected: stable because img_type dominates).
 
 - **Q1 (full)**: text + image(s)
 - **Q2 (text-only)**: same text with `<image N>` replaced by `[IMAGE WITHHELD]`
-- **Q3 (perturbed, optional)**: text + image downsampled 56×56 then re-upsampled
+- **Q3 (perturbed)**: text + image downsampled 56×56 then re-upsampled
+  — destroys fine spatial detail while preserving coarse layout.
 
-All queries use `logprobs=True, top_logprobs=5`. Extract:
-- For multiple-choice: logprob and top-1/top-2 margin of the **answer-letter
-  token** that appears after the `ANSWER:` marker.
-- For open-ended: mean logprob over the response.
+All three are default. All queries use `logprobs=True, top_logprobs=5`.
+Extract: for multiple-choice, logprob and top-1/top-2 margin of the
+answer-letter token after the `ANSWER:` marker; for open-ended, mean
+logprob over the response.
 
-**Headline metric: `encoder_lift = acc_full − acc_text_only` per stratum**
-(stratum keyed on `(img_type_bucket, stress_tier)`). A degraded encoder
-shrinks lift on high-stress strata while preserving it on low-stress
-strata (the negative-control bin from precompute).
+**Headline metric: the JOINT signal of two per-stratum lifts.**
+
+- `lift_text = acc_full − acc_text_only`  — does the encoder contribute ANYTHING text alone cannot?
+- `lift_pert = acc_full − acc_perturbed`  — does the encoder read FINE SPATIAL DETAIL, or only coarse gist?
+
+The joint rule, applied per stratum with calibration parameters `τ_lift`,
+`τ_pert` (CLI flags; defaults 0.10 / 0.05; tune per VLM family):
+
+| State    | Rule                                            | Interpretation                                                                 |
+|----------|-------------------------------------------------|--------------------------------------------------------------------------------|
+| ABSENT   | `lift_text < τ_lift`                            | encoder contributes ~nothing; items text-solvable or model ignoring the image |
+| COARSE   | `lift_text ≥ τ_lift` AND `lift_pert < τ_pert`   | encoder reads gist but is unmoved by destructive perturbation — the quantized / distilled encoder signature |
+| HEALTHY  | both lifts ≥ their thresholds                   | encoder is reading fine detail too                                            |
+
+The two lifts answer COMPLEMENTARY questions and together distinguish
+three regimes a single lift collapses. `joint_encoder_signal` produces a
+per-stratum classification and a state-count summary that the CLI renders
+as `joint_encoder_signal.md` — that markdown report is the decision
+artifact a reviewer or PM consumes.
 
 **Why a separate module, not adapter-internal.** The adapter selects items;
 the probe protocol is orthogonal. Wiring the triple-query into the adapter
@@ -421,24 +439,63 @@ allows the probe to run against ANY OpenAI-compatible endpoint (OpenAI,
 Azure, vLLM, Together, Anyscale, Cerebras, LM Studio…) by env vars alone,
 without an evalscope eval session.
 
-**Why text-only ablation is the headline.** It's the cleanest signal that
-distinguishes "encoder degraded" from "model got it wrong for other
-reasons":
-- `acc_full ≪ acc_text_only` → encoder pollution
-- `acc_full ≈ acc_text_only` on high-stress AND ≈ on low-stress → text-alone
-  sufficient; selection was wrong
-- `acc_full > acc_text_only` on high-stress AND ≈ on low-stress → healthy
-  encoder, properly differential
-
-Q3 perturbation is a nice-to-have robustness check; deferable.
-
 **Why injectable client.** `run_triple_query(client: ClientFn, ...)` takes a
 client function rather than constructing one internally. Unit tests pass in
-a `FakeClient` that returns canned responses; production uses
+a `FakeClient` that returns canned responses for distinct encoder behaviours
+(detail_reader / gist_only / broken / text_solvable). Production uses
 `default_openai_client()` which wraps `openai.OpenAI().chat.completions.create`.
 
-11 tests pass for prompt construction, answer extraction, logprob lookup,
-and stratum aggregation.
+25 tests pass: prompt construction (incl. Q3), answer extraction, logprob
+lookup, numeric aggregation, `classify_state` direct-rule tests for all
+three states + threshold boundaries, end-to-end joint-signal classification
+trials (one per state), threshold tunability, and the UNKNOWN-when-Q3-
+missing path.
+
+---
+
+## 2026-06-13 — Q3/perturbed: wire into a joint signal rather than cut it
+
+**Decision.** Q3 was captured-but-unused: `encoder_lift_by_stratum` had a
+`acc_lift_vs_perturbed` field but no decision rule, report, or handout
+consumed it. The choice was either (a) cut the perturbed path entirely
+(saving Pillow + ~50% inference cost), or (b) promote it to a co-equal
+second signal alongside Q2 with a joint rule that names three
+encoder-quality states. **Chose (b).**
+
+**Why not (a).** Q2 and Q3 don't answer the same question. Q2's
+text-withholding asks "does the encoder contribute *anything* text alone
+cannot?" Q3's destructive perturbation asks "does the encoder read *fine
+spatial detail*, or only coarse gist?" The fp8-vs-fp16 same-VLM
+experiment — the canonical encoder-degradation test — produces a
+quantized encoder that still passes Q2 (it's reading the image) but fails
+Q3 (it lost the high-spatial-frequency content during quantization). A
+single-Q2 protocol classifies that VLM as "healthy" and misses the entire
+regime that customers care about. So cutting Q3 leaves the most
+load-bearing degradation case undetected.
+
+**Implementation.** `joint_encoder_signal(outcomes, τ_lift, τ_pert)` maps
+each stratum to one of {ABSENT, COARSE, HEALTHY} via the rule above. A
+`render_joint_report` produces a markdown summary; `main()` writes it
+alongside the JSON. CLI defaults run all three variants; `--tau-lift` /
+`--tau-pert` are calibration parameters with sensible starting defaults
+(0.10 / 0.05), explicitly NOT fitted constants — they're tuned per VLM
+family. The renamed numeric fields `lift_text` and `lift_pert` replace
+the prior `encoder_lift` / `acc_lift_vs_perturbed` names so the canonical
+metric is consistent across code and docs.
+
+**Alternative considered: cut Q3.** Rejected. Would save ~50% inference
+cost per item and one optional Pillow dep, but the cost saving is
+hypothetical (a 2-variant smoke run still runs without Q3 if a caller
+opts down) while the loss is real: the COARSE state, the entire fp8/
+distillation/quantization detection story, becomes invisible.
+
+**Honesty.** No live endpoint, so the joint rule is implemented + unit-
+tested but not measured. Tests cover one trial per state via deterministic
+FakeClient behaviours (gist_only → COARSE, detail_reader → HEALTHY,
+broken → ABSENT, text_solvable → ABSENT) and a threshold-tunability test.
+Real `lift_text`/`lift_pert` numbers and τ-calibration belong with the
+fp8-vs-fp16 same-VLM experiment, listed in Handout A's "what changes with
+a live endpoint" section.
 
 ---
 
