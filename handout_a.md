@@ -59,7 +59,7 @@ I first compute a per-question **encoder stress score**:
 
 This score prioritizes questions whose images are likely to stress the vision encoder — such as dense diagrams, charts, tables, medical scans, microscopy images, music-sheets captured by `img_type`, and multi-image reasoning tasks captured by `grounding` with `<image N>` cross-references. `difficulty` reflects the inherent difficulty of the question. `ref-failure`'s weight is deliberately small (0.10) to avoid overfitting to glm-4.5v-fp8's specific failure modes. Questions are binned into stress quartiles using the encoder stress score; the probe primarily selects high-stress items while including a small portion of low-stress items as controls, stratified by image type and subject. Questions that can be solved from text alone receive lower priority.
 
-Raw MMMU accuracy collapses encoder quality with text-only reasoning — a model can score well because its language component guesses answers from the question text alone. I separate the two with a **triple-query protocol** through standard OpenAI chat-completions (`logprobs=True, top_logprobs=5`): 
+Raw MMMU accuracy collapses encoder quality with text-only reasoning — a model can score well because its language component guesses answers from the question text alone. I separate the two with a **triple-query protocol** through standard OpenAI chat-completions: 
 - Q1: Full image + text prompt
 - Q2: Same prompt with `<image N>` replaced by textual description `[IMAGE WITHHELD]`
 - Q3: text + image downsampled to 56×56 and re-upsampled (destroys fine spatial detail; preserves coarse layout)
