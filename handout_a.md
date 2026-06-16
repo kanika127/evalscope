@@ -35,9 +35,6 @@ I pruned LiveCodeBench to 32 questions (10%) and AA-LCR to 30 questions (30%) fo
 
 
 
-
-
-
 I validated sufficiency by sweeping prune ratios from 5% to 70% and measuring held-out model rank preservation across 30 leave-one-model-out trials (10 seeds × 3 folds). This directly tests defensibility for an unseen fourth model.
 
 On LiveCodeBench, rank preservation for distinguishable models reaches 100% at 10% (32 items). Below this ratio, preservation drops noticeably. 

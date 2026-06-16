@@ -91,35 +91,46 @@ The pruning core itself depends only on the Python stdlib; the only extra depend
 
 ## Run contract — pruned eval and compare
 
-Standard evalscope CLI; the three pruned benchmarks register as drop-in datasets.
+Standard evalscope CLI; the three pruned benchmarks are built directly into evalscope as regular benchmarks. 
 
+**Step 1 — Full run (baseline)**
 ```bash
-# 1. Full evaluation (baseline)
+# Full evaluation (baseline)
 evalscope eval --model <candidate> --datasets live_code_bench --output ./results_full/
+```
 
-# 2. Pruned evaluation — pick a cache from evalscope_ext/pruners/cache/
+**Step 2 — Pruned run**
+```bash
+# Default (hybrid strategy, 10% of LCB / 30% of AA-LCR — the validated settings)
+evalscope eval --model <candidate> \
+  --datasets live_code_bench_pruned \
+  --output ./results_pruned/
+
+# Override strategy and ratio explicitly (flat dict)
+evalscope eval --model <candidate> \
+  --datasets live_code_bench_pruned \
+  --dataset-args '{"pruning_strategy": "hybrid", "prune_ratio": 0.1}' \
+  --output ./results_pruned/
+
+# Using the nested format (equivalent)
+evalscope eval --model <candidate> \
+  --datasets live_code_bench_pruned \
+  --dataset-args '{"live_code_bench_pruned": {"pruning_strategy": "hybrid", "prune_ratio": 0.1}}' \
+  --output ./results_pruned/
+```
+<!--# Pruned evaluation — pick a cache from evalscope_ext/pruners/cache/
 evalscope eval --model <candidate> \
   --datasets live_code_bench_pruned \
   --dataset-args '{"live_code_bench_pruned": {"extra_params": {"index_file": "evalscope_ext/pruners/cache/lcb_hybrid_r010.json"}}}' \
-  --output ./results_pruned/
+  --output ./results_pruned/-->
+  
+Valid strategies: `hybrid` (recommended), `random`, `stratified_only`, `disagreement_only`.
 
-# 3. Compare
-python -m evalscope_ext.tools.compare_runs --full ./results_full/ --pruned ./results_pruned/
-```
+Pre-computed caches ship at ratios r=0.05–0.70; the defaults (r=0.10 for LCB, r=0.30 for AA-LCR) are the smallest ratios that preserve rank ordering across every statistically distinguishable model.
 
-The same pattern for the other two benchmarks (substitute `aa_lcr_pruned` or `mmmu_pruned`, and a matching cache):
+Substitute `aa_lcr_pruned` or `mmmu_pruned` (with a matching cache) for the other benchmarks. Cache filename convention: `<bench>_<strategy>_r<ratio×100>.json` (e.g. `lcb_hybrid_r010.json`).
 
-```bash
-# AA-LCR — hybrid 50-item subset (r=0.50)
-evalscope eval --model <candidate> --datasets aa_lcr_pruned \
-  --dataset-args '{"aa_lcr_pruned": {"extra_params": {"index_file": "evalscope_ext/pruners/cache/aa_lcr_hybrid_r050.json"}}}' \
-  --output ./results_pruned/
-
-# MMMU — hybrid 30% encoder-stress subset (r=0.30)
-evalscope eval --model <candidate> --datasets mmmu_pruned \
-  --dataset-args '{"mmmu_pruned": {"extra_params": {"index_file": "evalscope_ext/pruners/cache/mmmu_hybrid_r030.json"}}}' \
-  --output ./results_pruned/
-```
+With multiple datasets, use the nested format for per-benchmark control — e.g. `{"live_code_bench_pruned": {"prune_ratio": 0.2}, "aa_lcr_pruned": {"prune_ratio": 0.4}}`. The flat format applies one ratio to all.
 
 ### Cache filename convention
 

@@ -8,19 +8,25 @@ Instead of running 415 questions and waiting overnight (or longer), a sales engi
 
 ## How to run it
 
-The pruners are built directly into evalscope as regular benchmarks. Running the pruned benchmarks is straightforward. After a one-time setup, a sales engineer or deployment lead can get a go/no-go answer with just two commands.
+Running the pruned benchmarks is straightforward. After a one-time setup, you can get a go/no-go signal with just two commands.
 
-One-time setup:
+One-time setup and baseline run:
 ```bash
-  git clone https://github.com/kanika127/evalscope.git 
-  cd evalscope
-  pip install -e .
+# setup
+git clone https://github.com/kanika127/evalscope.git 
+cd evalscope
+pip install -e .
+
+# Full evaluation (baseline)
+evalscope eval --model <candidate> --datasets live_code_bench --output ./results_full/
 ```
+
 Run a pruned evaluation on a candidate model:
 ```bash
+# Pruned evaluation
 evalscope eval --model <candidate> \
   --datasets live_code_bench_pruned aa_lcr_pruned \
-  --work-dir ./results_pruned/
+  --output ./results_pruned/
 ```
 
 Compare pruned results against a full baseline:
@@ -31,14 +37,12 @@ python -m evalscope_ext.tools.compare_runs \
 
 `compare_runs` shows the accuracy delta, percentage of items kept, and whether the model ranking is preserved. You compare the numbers against your team’s threshold — above it, the answer is yes; below it, no. No manual interpretation is needed.
 
-To override a ratio (e.g. AA-LCR fast triage at 10 items), pass `--dataset-args '{"aa_lcr_pruned": {"prune_ratio": 0.10}}'` — any shipped ratio in r=0.05–0.70 resolves to a precomputed cache.
-
 
 ## What the multimodal probe gives that random sampling cannot
 
 If the customer’s roadmap expands to vision next quarter, the MMMU probe gives us something random sampling cannot: it specifically tests whether the image encoder is working, not just whether the model is generally capable.
 
-Raw MMMU accuracy can be misleading. Many questions can be answered reasonably well from the text alone, so a model with a weak image encoder can still score decently by mostly ignoring the image. Random sampling mixes these with truly visual questions, so a model with a broken encoder can still score reasonably well by ignoring the images.
+Raw MMMU accuracy can be misleading because many questions can be answered from text alone. A model with a weak image encoder can still score reasonably well by ignoring the image. Random sampling mixes these text-solvable questions with truly visual ones, hiding encoder weaknesses.
 
 Our probe avoids this problem in two ways. First, our probe deliberately selects visually demanding questions (dense diagrams, charts, medical images, etc.). Second, it compares performance with the image versus with only a text description of the image, and with a perturbed (low-resolution) version of the image. By comparing performance across these conditions, we can tell whether the encoder is contributing meaningfully, whether it’s only capturing gist, or whether it’s barely being used at all. This gives us a much clearer signal about encoder quality.
 
