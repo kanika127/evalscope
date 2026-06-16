@@ -65,7 +65,7 @@ Background documentation:
 
 | File | Contents |
 |---|---|
-| [`architecture_flowcharts.md`](./architecture_flowcharts.md) | Flowchart disgram explanig architecture |
+| [`architecture_flowcharts.md`](./architecture_flowcharts.md) | Flowchart diagram explanig architecture |
 | [`DECISIONS.md`](./DECISIONS.md) | Running log of key design choices with rationale |
 | [`FINDINGS.md`](./FINDINGS.md) | Running log of verified facts, data findings, validation results |
 | [`evalscope_ext/validation/summary.md`](./evalscope_ext/validation/summary.md) | Per-(benchmark, strategy, ratio) preservation rates |
